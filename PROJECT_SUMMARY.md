@@ -10,7 +10,7 @@ This document serves as the master tracking document for **FinMitra**, outlining
 |---|---|---|---|
 | **Module 1** | User Authentication, JWT Security, & MySQL User Entity | Spring Boot, BCrypt, JJWT, MySQL | ✅ **Completed & Verified** |
 | **Module 1.5**| Frontend Web Application & Day/Dark Mode UI | React 18, Vite 5, Recharts, Lucide | ✅ **Completed & Verified** |
-| **Module 2** | Backend Persistence for Transactions & Budgets | Spring Boot JPA, MySQL, REST APIs | 🔄 **In Progress (Approved)** |
+| **Module 2** | Backend Persistence for Transactions & Budgets | Spring Boot JPA, MySQL, REST APIs | ✅ **Completed & Pushed** |
 | **Module 3** | AI Financial Advice Engine & Spending Analytics | Spring Boot, React, Custom AI Rule Engine | ⏳ **Planned (Next)** |
 | **Module 4** | Export & Reporting (CSV / PDF Export) | OpenPDF / Apache POI, React | ⏳ **Planned** |
 
@@ -49,7 +49,7 @@ CREATE TABLE users (
 );
 ```
 
-### 2. `transactions` Table (Module 2 — Pending Creation)
+### 2. `transactions` Table (Module 2)
 ```sql
 CREATE TABLE transactions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -57,13 +57,13 @@ CREATE TABLE transactions (
     amount DECIMAL(12,2) NOT NULL,
     category VARCHAR(100) NOT NULL,
     note VARCHAR(255) NOT NULL,
-    type ENUM('INCOME', 'EXPENSE') NOT NULL,
+    type VARCHAR(50) NOT NULL,
     date DATE NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 ```
 
-### 3. `budgets` Table (Module 2 — Pending Creation)
+### 3. `budgets` Table (Module 2)
 ```sql
 CREATE TABLE budgets (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -84,10 +84,10 @@ CREATE TABLE budgets (
 - `POST /api/auth/login` — Authenticates credentials and returns JWT Bearer token.
 - `GET /api/test/me` — Protected test endpoint requiring `Authorization: Bearer <token>`.
 
-### Module 2: Transaction & Budget Endpoints (To Be Added)
+### Module 2: Transaction & Budget Endpoints (`/api/transactions`, `/api/budgets`)
 - `POST /api/transactions` — Add an income credit or expense debit for logged-in user.
 - `GET /api/transactions` — Fetch all transactions for logged-in user sorted by date.
-- `DELETE /api/transactions/{id}` — Delete a transaction by ID.
+- `DELETE /api/transactions/{id}` — Delete a transaction by ID owned by logged-in user.
 - `POST /api/budgets` — Set/update monthly budget limit for a category.
 - `GET /api/budgets` — Fetch user's category budget limits vs actual spending.
 
