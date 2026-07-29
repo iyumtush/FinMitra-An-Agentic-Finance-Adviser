@@ -2,24 +2,46 @@ import React, { useState, useEffect } from 'react';
 import { Plus, AlertCircle, CheckCircle2, X, RefreshCw, Edit2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { budgetApi } from '../api/budgetApi';
+import { categoryApi } from '../api/categoryApi';
 import './BudgetView.css';
+
+const BUILT_IN_CATEGORIES = [
+  'To People',
+  'Health',
+  'Food, Beverages and Groceries',
+  'Travel & Transport',
+  'Online Shopping',
+  'Rent',
+  'Utilities',
+  'Entertainment',
+  'Food',
+  'Shopping',
+  'Transport'
+];
 
 export default function BudgetView() {
   const { user } = useAuth();
   const [budgets, setBudgets] = useState([]);
+  const [customCategories, setCustomCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   
-  const [category, setCategory] = useState('Food');
+  const [categoryOption, setCategoryOption] = useState('Food, Beverages and Groceries');
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
+  const [customCategoryColor, setCustomCategoryColor] = useState('#00E676');
   const [limit, setLimit] = useState('');
 
-  const fetchBudgets = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await budgetApi.getBudgets();
-      setBudgets(data);
+      const [bData, catData] = await Promise.all([
+        budgetApi.getBudgets(),
+        categoryApi.getCategories().catch(() => [])
+      ]);
+      setBudgets(bData);
+      setCustomCategories(catData || []);
     } catch (err) {
       console.error('Failed to fetch budgets:', err);
     } finally {
@@ -28,12 +50,13 @@ export default function BudgetView() {
   };
 
   useEffect(() => {
-    fetchBudgets();
+    fetchData();
   }, []);
 
   const openAddModal = () => {
     setEditingBudget(null);
-    setCategory('Food');
+    setCategoryOption('Food, Beverages and Groceries');
+    setCustomCategoryInput('');
     setLimit('');
     setErrorMsg('');
     setShowModal(true);
@@ -41,7 +64,8 @@ export default function BudgetView() {
 
   const openEditModal = (b) => {
     setEditingBudget(b);
-    setCategory(b.category);
+    setCategoryOption(b.category);
+    setCustomCategoryInput('');
     setLimit(b.limitAmount.toString());
     setErrorMsg('');
     setShowModal(true);
@@ -52,14 +76,34 @@ export default function BudgetView() {
     if (!limit) return;
     setErrorMsg('');
 
+    let finalCategory = categoryOption;
+
     try {
+      if (categoryOption === '__CUSTOM__') {
+        if (!customCategoryInput.trim()) {
+          setErrorMsg('Please enter a custom category name');
+          return;
+        }
+
+        try {
+          const newCat = await categoryApi.createCategory({
+            name: customCategoryInput.trim(),
+            color: customCategoryColor
+          });
+          finalCategory = newCat.name;
+          setCustomCategories([...customCategories, newCat]);
+        } catch (catErr) {
+          finalCategory = customCategoryInput.trim();
+        }
+      }
+
       const payload = {
-        category,
+        category: finalCategory,
         limitAmount: parseFloat(limit)
       };
 
       await budgetApi.setBudget(payload);
-      await fetchBudgets();
+      await fetchData();
       setLimit('');
       setShowModal(false);
       setEditingBudget(null);
@@ -69,6 +113,9 @@ export default function BudgetView() {
       setErrorMsg(backendMsg);
     }
   };
+
+  const customNames = customCategories.map(c => c.name);
+  const allCategoryOptions = Array.from(new Set([...BUILT_IN_CATEGORIES, ...customNames]));
 
   return (
     <div className="budget-view-container">
@@ -161,19 +208,52 @@ export default function BudgetView() {
 
               <div className="input-group">
                 <label>Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)} disabled={!!editingBudget}>
-                  <option value="Food">Food</option>
-                  <option value="Rent">Rent</option>
-                  <option value="Transport">Transport</option>
-                  <option value="Shopping">Shopping</option>
-                  <option value="Entertainment">Entertainment</option>
+                <select 
+                  value={categoryOption} 
+                  onChange={(e) => setCategoryOption(e.target.value)} 
+                  disabled={!!editingBudget}
+                >
+                  {allCategoryOptions.map((cat, idx) => (
+                    <option key={idx} value={cat}>{cat}</option>
+                  ))}
+                  <option value="__CUSTOM__">✨ + Add Custom Category...</option>
                 </select>
               </div>
+
+              {categoryOption === '__CUSTOM__' && !editingBudget && (
+                <div style={{ background: 'var(--badge-bg)', padding: '14px', borderRadius: '14px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div className="input-group">
+                    <label>New Custom Category Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Pets, Gaming, Crypto" 
+                      value={customCategoryInput} 
+                      onChange={(e) => setCustomCategoryInput(e.target.value)} 
+                      required 
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label>Category Theme Color</label>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <input 
+                        type="color" 
+                        value={customCategoryColor} 
+                        onChange={(e) => setCustomCategoryColor(e.target.value)} 
+                        style={{ width: '44px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{customCategoryColor}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="input-group">
                 <label>Monthly Limit (₹)</label>
                 <input 
                   type="number" 
+                  step="0.01"
                   placeholder="e.g. 5000" 
                   value={limit} 
                   onChange={(e) => setLimit(e.target.value)} 

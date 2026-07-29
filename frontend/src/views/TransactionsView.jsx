@@ -1,21 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Trash2, Edit2, RefreshCw } from 'lucide-react';
+import { Plus, X, Trash2, Edit2, RefreshCw, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { transactionApi } from '../api/transactionApi';
 import { categoryApi } from '../api/categoryApi';
 import './TransactionsView.css';
 
+const BUILT_IN_CATEGORIES = [
+  'To People',
+  'Health',
+  'Food, Beverages and Groceries',
+  'Travel & Transport',
+  'Online Shopping',
+  'Rent',
+  'Utilities',
+  'Entertainment',
+  'Salary'
+];
+
 export default function TransactionsView({ onTransactionChange }) {
   const { user } = useAuth();
   const [txList, setTxList] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [customCategories, setCustomCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Form Fields
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [category, setCategory] = useState('Food');
+  const [selectedCategoryOption, setSelectedCategoryOption] = useState('Food, Beverages and Groceries');
+  const [customCategoryInput, setCustomCategoryInput] = useState('');
+  const [customCategoryColor, setCustomCategoryColor] = useState('#00E676');
   const [note, setNote] = useState('');
   const [type, setType] = useState('Expense');
   const [amount, setAmount] = useState('');
@@ -25,13 +40,13 @@ export default function TransactionsView({ onTransactionChange }) {
       setLoading(true);
       const [txData, catData] = await Promise.all([
         transactionApi.getTransactions(),
-        categoryApi.getCategories()
+        categoryApi.getCategories().catch(() => [])
       ]);
       setTxList(txData);
-      setCategories(catData);
+      setCustomCategories(catData || []);
       if (onTransactionChange) onTransactionChange(txData);
     } catch (err) {
-      console.error('Failed to fetch transactions or categories:', err);
+      console.error('Failed to fetch transactions:', err);
     } finally {
       setLoading(false);
     }
@@ -44,7 +59,9 @@ export default function TransactionsView({ onTransactionChange }) {
   const openAddModal = () => {
     setEditingTx(null);
     setDate(new Date().toISOString().split('T')[0]);
-    setCategory('Food');
+    setSelectedCategoryOption('Food, Beverages and Groceries');
+    setCustomCategoryInput('');
+    setCustomCategoryColor('#00E676');
     setNote('');
     setType('Expense');
     setAmount('');
@@ -55,7 +72,8 @@ export default function TransactionsView({ onTransactionChange }) {
   const openEditModal = (tx) => {
     setEditingTx(tx);
     setDate(tx.date);
-    setCategory(tx.category);
+    setSelectedCategoryOption(tx.category);
+    setCustomCategoryInput('');
     setNote(tx.note);
     setType(tx.type === 'INCOME' || tx.type === 'Income' ? 'Income' : 'Expense');
     setAmount(tx.amount.toString());
@@ -80,10 +98,32 @@ export default function TransactionsView({ onTransactionChange }) {
     if (!amount || !note) return;
     setErrorMsg('');
 
+    let finalCategory = selectedCategoryOption;
+
     try {
+      // If user selected "+ Add Custom Category...", create it in MySQL first
+      if (selectedCategoryOption === '__CUSTOM__') {
+        if (!customCategoryInput.trim()) {
+          setErrorMsg('Please enter a custom category name');
+          return;
+        }
+
+        try {
+          const newCat = await categoryApi.createCategory({
+            name: customCategoryInput.trim(),
+            color: customCategoryColor
+          });
+          finalCategory = newCat.name;
+          setCustomCategories([...customCategories, newCat]);
+        } catch (catErr) {
+          // If category already exists, use the name
+          finalCategory = customCategoryInput.trim();
+        }
+      }
+
       const payload = {
         amount: parseFloat(amount),
-        category,
+        category: finalCategory,
         note,
         type: type.toUpperCase(),
         date
@@ -101,8 +141,6 @@ export default function TransactionsView({ onTransactionChange }) {
         if (onTransactionChange) onTransactionChange(updatedList);
       }
 
-      setNote('');
-      setAmount('');
       setShowModal(false);
       setEditingTx(null);
     } catch (err) {
@@ -110,10 +148,9 @@ export default function TransactionsView({ onTransactionChange }) {
     }
   };
 
-  // Combine default categories with custom user categories
-  const defaultCats = ['To People', 'Health', 'Food, Beverages and Groceries', 'Travel & Transport', 'Online Shopping', 'Salary', 'Rent', 'Food', 'Transport', 'Shopping', 'Entertainment'];
-  const customCatNames = categories.map(c => c.name);
-  const allCategoryOptions = Array.from(new Set([...defaultCats, ...customCatNames]));
+  // Combine Category Options
+  const customNames = customCategories.map(c => c.name);
+  const allCategoryOptions = Array.from(new Set([...BUILT_IN_CATEGORIES, ...customNames]));
 
   return (
     <div className="transactions-view-container">
@@ -128,7 +165,7 @@ export default function TransactionsView({ onTransactionChange }) {
       <div className="fin-card table-card">
         {loading ? (
           <div className="loading-state" style={{ padding: '30px', textAlign: 'center' }}>
-            <RefreshCw size={24} className="spin-icon" /> Loading your live transactions...
+            <RefreshCw size={24} className="spin-icon" /> Loading live transactions...
           </div>
         ) : txList.length === 0 ? (
           <div className="empty-state" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -200,7 +237,7 @@ export default function TransactionsView({ onTransactionChange }) {
             </div>
             
             <form onSubmit={handleSubmit} className="modal-form">
-              {errorMsg && <div className="error-badge">{errorMsg}</div>}
+              {errorMsg && <div className="error-badge" style={{ background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)', padding: '10px', borderRadius: '10px', fontSize: '0.85rem' }}>{errorMsg}</div>}
 
               <div className="type-toggle">
                 <button 
@@ -229,20 +266,55 @@ export default function TransactionsView({ onTransactionChange }) {
                 />
               </div>
 
+              {/* Category Dropdown with "+ Add Custom Category" option */}
               <div className="input-group">
                 <label>Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <select 
+                  value={selectedCategoryOption} 
+                  onChange={(e) => setSelectedCategoryOption(e.target.value)}
+                >
                   {allCategoryOptions.map((cat, idx) => (
                     <option key={idx} value={cat}>{cat}</option>
                   ))}
+                  <option value="__CUSTOM__">✨ + Add Custom Category...</option>
                 </select>
               </div>
+
+              {/* Custom Category Input if selected */}
+              {selectedCategoryOption === '__CUSTOM__' && (
+                <div style={{ background: 'var(--badge-bg)', padding: '14px', borderRadius: '14px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div className="input-group">
+                    <label>New Custom Category Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Pets, Gaming, Crypto" 
+                      value={customCategoryInput} 
+                      onChange={(e) => setCustomCategoryInput(e.target.value)} 
+                      required 
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label>Category Theme Color</label>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <input 
+                        type="color" 
+                        value={customCategoryColor} 
+                        onChange={(e) => setCustomCategoryColor(e.target.value)} 
+                        style={{ width: '44px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer' }}
+                      />
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{customCategoryColor}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="input-group">
                 <label>Note / Description</label>
                 <input 
                   type="text" 
-                  placeholder="e.g. Monthly salary or Groceries" 
+                  placeholder="e.g. Sent to Ramesh or Monthly Groceries" 
                   value={note} 
                   onChange={(e) => setNote(e.target.value)} 
                   required 
