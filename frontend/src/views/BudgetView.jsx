@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, AlertCircle, CheckCircle2, X, RefreshCw } from 'lucide-react';
+import { Plus, AlertCircle, CheckCircle2, X, RefreshCw, Edit2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { budgetApi } from '../api/budgetApi';
 import './BudgetView.css';
@@ -9,6 +9,7 @@ export default function BudgetView() {
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingBudget, setEditingBudget] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   
   const [category, setCategory] = useState('Food');
@@ -30,6 +31,22 @@ export default function BudgetView() {
     fetchBudgets();
   }, []);
 
+  const openAddModal = () => {
+    setEditingBudget(null);
+    setCategory('Food');
+    setLimit('');
+    setErrorMsg('');
+    setShowModal(true);
+  };
+
+  const openEditModal = (b) => {
+    setEditingBudget(b);
+    setCategory(b.category);
+    setLimit(b.limitAmount.toString());
+    setErrorMsg('');
+    setShowModal(true);
+  };
+
   const handleSaveBudget = async (e) => {
     e.preventDefault();
     if (!limit) return;
@@ -45,6 +62,7 @@ export default function BudgetView() {
       await fetchBudgets();
       setLimit('');
       setShowModal(false);
+      setEditingBudget(null);
     } catch (err) {
       console.error('Save Budget Error:', err);
       const backendMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to save budget limit';
@@ -56,7 +74,7 @@ export default function BudgetView() {
     <div className="budget-view-container">
       <div className="view-header">
         <h2 className="view-title">Monthly budgets</h2>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={openAddModal}>
           <Plus size={16} />
           Set Budget Limit
         </button>
@@ -82,7 +100,16 @@ export default function BudgetView() {
             return (
               <div key={b.id || b.category} className="fin-card budget-card">
                 <div className="budget-card-top">
-                  <span className="budget-cat-title">{b.category}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="budget-cat-title">{b.category}</span>
+                    <button 
+                      onClick={() => openEditModal(b)} 
+                      title="Edit Budget Limit"
+                      style={{ background: 'transparent', border: 'none', color: 'var(--accent-cyan)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                  </div>
                   <span className="budget-cat-val">
                     ₹{spent.toLocaleString('en-IN')} / ₹{limitVal.toLocaleString('en-IN')}
                   </span>
@@ -114,12 +141,12 @@ export default function BudgetView() {
         </div>
       )}
 
-      {/* Set Budget Modal */}
+      {/* Set / Edit Budget Modal */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-card">
             <div className="modal-header">
-              <h3>Set Monthly Budget</h3>
+              <h3>{editingBudget ? `Edit ${editingBudget.category} Budget` : 'Set Monthly Budget'}</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>
                 <X size={18} />
               </button>
@@ -134,7 +161,7 @@ export default function BudgetView() {
 
               <div className="input-group">
                 <label>Category</label>
-                <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <select value={category} onChange={(e) => setCategory(e.target.value)} disabled={!!editingBudget}>
                   <option value="Food">Food</option>
                   <option value="Rent">Rent</option>
                   <option value="Transport">Transport</option>
@@ -154,7 +181,9 @@ export default function BudgetView() {
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary full-btn">Save Budget to MySQL</button>
+              <button type="submit" className="btn btn-primary full-btn">
+                {editingBudget ? 'Update Budget Limit' : 'Save Budget to MySQL'}
+              </button>
             </form>
           </div>
         </div>

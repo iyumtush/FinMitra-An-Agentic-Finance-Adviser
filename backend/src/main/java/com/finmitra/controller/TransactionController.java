@@ -38,6 +38,17 @@ public class TransactionController {
         return ResponseEntity.ok(transactions);
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<TransactionResponse> updateTransaction(
+            @PathVariable("id") Long id,
+            @Valid @RequestBody TransactionRequest request,
+            Authentication authentication
+    ) {
+        String userEmail = authentication.getName();
+        TransactionResponse response = transactionService.updateTransaction(userEmail, id, request);
+        return ResponseEntity.ok(response);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteTransaction(
             @PathVariable("id") Long id,

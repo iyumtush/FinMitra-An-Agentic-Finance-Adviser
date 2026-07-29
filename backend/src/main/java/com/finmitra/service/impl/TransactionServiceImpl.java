@@ -52,6 +52,28 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     @Override
+    public TransactionResponse updateTransaction(String userEmail, Long transactionId, TransactionRequest request) {
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND, "User not found"));
+
+        Transaction transaction = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND, "Transaction not found with id: " + transactionId));
+
+        if (!transaction.getUser().getId().equals(user.getId())) {
+            throw new APIException(HttpStatus.FORBIDDEN, "You do not have permission to edit this transaction");
+        }
+
+        transaction.setAmount(request.getAmount());
+        transaction.setCategory(request.getCategory());
+        transaction.setNote(request.getNote());
+        transaction.setType(request.getType().toUpperCase());
+        transaction.setDate(request.getDate());
+
+        Transaction updated = transactionRepository.save(transaction);
+        return mapToResponse(updated);
+    }
+
+    @Override
     public void deleteTransaction(String userEmail, Long transactionId) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND, "User not found"));

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, X, Trash2, Edit2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { transactionApi } from '../api/transactionApi';
 import './TransactionsView.css';
@@ -9,6 +9,7 @@ export default function TransactionsView({ onTransactionChange }) {
   const [txList, setTxList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingTx, setEditingTx] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -34,7 +35,30 @@ export default function TransactionsView({ onTransactionChange }) {
     fetchTransactions();
   }, []);
 
+  const openAddModal = () => {
+    setEditingTx(null);
+    setDate(new Date().toISOString().split('T')[0]);
+    setCategory('Food');
+    setNote('');
+    setType('Expense');
+    setAmount('');
+    setErrorMsg('');
+    setShowModal(true);
+  };
+
+  const openEditModal = (tx) => {
+    setEditingTx(tx);
+    setDate(tx.date);
+    setCategory(tx.category);
+    setNote(tx.note);
+    setType(tx.type === 'INCOME' || tx.type === 'Income' ? 'Income' : 'Expense');
+    setAmount(tx.amount.toString());
+    setErrorMsg('');
+    setShowModal(true);
+  };
+
   const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this transaction?')) return;
     try {
       await transactionApi.deleteTransaction(id);
       const updated = txList.filter(t => t.id !== id);
@@ -45,7 +69,7 @@ export default function TransactionsView({ onTransactionChange }) {
     }
   };
 
-  const handleAdd = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount || !note) return;
     setErrorMsg('');
@@ -59,14 +83,22 @@ export default function TransactionsView({ onTransactionChange }) {
         date
       };
 
-      const newTx = await transactionApi.createTransaction(payload);
-      const updated = [newTx, ...txList];
-      setTxList(updated);
-      if (onTransactionChange) onTransactionChange(updated);
+      if (editingTx) {
+        const updatedTx = await transactionApi.updateTransaction(editingTx.id, payload);
+        const updatedList = txList.map(t => t.id === editingTx.id ? updatedTx : t);
+        setTxList(updatedList);
+        if (onTransactionChange) onTransactionChange(updatedList);
+      } else {
+        const newTx = await transactionApi.createTransaction(payload);
+        const updatedList = [newTx, ...txList];
+        setTxList(updatedList);
+        if (onTransactionChange) onTransactionChange(updatedList);
+      }
 
       setNote('');
       setAmount('');
       setShowModal(false);
+      setEditingTx(null);
     } catch (err) {
       setErrorMsg(err.response?.data?.message || 'Failed to save transaction');
     }
@@ -76,7 +108,7 @@ export default function TransactionsView({ onTransactionChange }) {
     <div className="transactions-view-container">
       <div className="view-header">
         <h2 className="view-title">All transactions</h2>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={openAddModal}>
           <Plus size={16} />
           Add transaction
         </button>
@@ -119,13 +151,23 @@ export default function TransactionsView({ onTransactionChange }) {
                       {tx.type === 'INCOME' || tx.type === 'Income' ? '+' : '-'}₹{Number(tx.amount).toLocaleString('en-IN')}
                     </td>
                     <td>
-                      <button 
-                        className="delete-btn" 
-                        onClick={() => handleDelete(tx.id)} 
-                        title="Delete Transaction"
-                      >
-                        <X size={16} />
-                      </button>
+                      <div className="actions-cell" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button 
+                          className="action-btn edit-btn" 
+                          onClick={() => openEditModal(tx)} 
+                          title="Edit Transaction"
+                          style={{ background: 'transparent', border: 'none', color: 'var(--accent-cyan)', cursor: 'pointer', padding: '4px' }}
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button 
+                          className="delete-btn" 
+                          onClick={() => handleDelete(tx.id)} 
+                          title="Delete Transaction"
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -135,18 +177,18 @@ export default function TransactionsView({ onTransactionChange }) {
         )}
       </div>
 
-      {/* Add Modal */}
+      {/* Add / Edit Modal */}
       {showModal && (
         <div className="modal-backdrop">
           <div className="modal-card">
             <div className="modal-header">
-              <h3>Add New Transaction</h3>
+              <h3>{editingTx ? 'Edit Transaction' : 'Add New Transaction'}</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>
                 <X size={18} />
               </button>
             </div>
             
-            <form onSubmit={handleAdd} className="modal-form">
+            <form onSubmit={handleSubmit} className="modal-form">
               {errorMsg && <div className="error-badge">{errorMsg}</div>}
 
               <div className="type-toggle">
@@ -184,6 +226,7 @@ export default function TransactionsView({ onTransactionChange }) {
                   <option value="Food">Food</option>
                   <option value="Transport">Transport</option>
                   <option value="Shopping">Shopping</option>
+                  <option value="Entertainment">Entertainment</option>
                 </select>
               </div>
 
@@ -209,7 +252,9 @@ export default function TransactionsView({ onTransactionChange }) {
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary full-btn">Save to MySQL</button>
+              <button type="submit" className="btn btn-primary full-btn">
+                {editingTx ? 'Update Transaction' : 'Save to MySQL'}
+              </button>
             </form>
           </div>
         </div>
