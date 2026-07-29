@@ -8,6 +8,8 @@
 
 ```text
 FinMitra/
+├── PROJECT_SUMMARY.md        # Master tracking & architecture summary
+├── README.md                 # Setup & quickstart guide
 ├── backend/                  # Java Spring Boot REST API
 │   ├── pom.xml               # Maven dependencies (Spring Web, Security, JPA, JWT, Swagger)
 │   ├── src/main/java/        # Layered architecture (controller, service, repository, entity, security, dto)
@@ -31,7 +33,7 @@ FinMitra/
 - **Database Name**: `finmitra_db`
 - **Host**: `localhost:3306`
 - **Username**: `root`
-- **Password**: `RootPassword123!`
+- **Password**: `TushNIIT123#`
 
 ---
 
@@ -50,7 +52,6 @@ mvn spring-boot:run
 In a new terminal window:
 ```bash
 cd frontend
-npm install
 npm run dev
 ```
 - **Web App URL**: `http://localhost:3000`
@@ -73,11 +74,11 @@ npm run dev
    - Income vs Expense Bar Comparison Chart.
 
 4. **Transactions Ledger (`Transactions`)**:
-   - All transactions with Date, Category badges, Note/Description, Type, and Amount (`+₹35,000` / `-₹10,000`).
+   - All transactions stored in MySQL with Date, Category badges, Note/Description, Type, and Amount (`+₹35,000` / `-₹10,000`).
    - `+ Add transaction` modal & delete action.
 
 5. **Monthly Budgets (`Budget`)**:
-   - Category budget progress bars with remaining amount or over-budget alerts (`Food`, `Rent`, `Transport`, `Shopping`).
+   - Category budget progress bars stored in MySQL with remaining amount or over-budget alerts (`Food`, `Rent`, `Transport`, `Shopping`).
    - `+ Set Budget Limit` modal.
 
 6. **AI Financial Insight (`AI Insight`)**:
