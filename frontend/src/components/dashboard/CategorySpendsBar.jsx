@@ -1,22 +1,35 @@
 import React, { useState } from 'react';
-import { Plus, X, Tag } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { categoryApi } from '../../api/categoryApi';
 import './CategorySpendsBar.css';
 
 const DEFAULT_COLOR_MAP = {
-  'To People': '#F43F5E',
-  'Health': '#10B981',
+  'Rent': '#A16207',
+  'Food': '#059669',
   'Food, Beverages and Groceries': '#0284C7',
-  'Food': '#0284C7',
+  'Health': '#10B981',
+  'To People': '#F43F5E',
   'Travel & Transport': '#F59E0B',
   'Transport': '#F59E0B',
   'Online Shopping': '#8B5CF6',
   'Shopping': '#8B5CF6',
-  'Rent': '#A16207',
   'Utilities': '#EC4899',
-  'Salary': '#00E676',
-  'Entertainment': '#6366F1'
+  'Entertainment': '#6366F1',
+  'Salary': '#00E676'
 };
+
+// Generate deterministic vibrant HSL color for any dynamic category
+function getCategoryColor(name, customMap) {
+  if (customMap && customMap[name]) return customMap[name];
+  if (DEFAULT_COLOR_MAP[name]) return DEFAULT_COLOR_MAP[name];
+
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 75%, 50%)`;
+}
 
 export default function CategorySpendsBar({ categoryTotals, customCategories, onCategoryAdded }) {
   const [showModal, setShowModal] = useState(false);
@@ -26,25 +39,26 @@ export default function CategorySpendsBar({ categoryTotals, customCategories, on
   const [showAll, setShowAll] = useState(false);
 
   // Map Custom Categories colors
-  const colorMap = { ...DEFAULT_COLOR_MAP };
+  const customColorMap = {};
   if (customCategories && Array.isArray(customCategories)) {
     customCategories.forEach(c => {
-      colorMap[c.name] = c.color;
+      customColorMap[c.name] = c.color;
     });
   }
 
   // Calculate Total Expense
   const totalExpense = Object.values(categoryTotals).reduce((sum, val) => sum + val, 0);
 
-  // Format Categories sorted by highest spend
+  // Filter ONLY categories with > 0 actual expense, sorted strictly by HIGHEST EXPENSE FIRST
   const sortedCategories = Object.keys(categoryTotals)
     .map(name => ({
       name,
-      amount: categoryTotals[name],
-      pct: totalExpense > 0 ? (categoryTotals[name] / totalExpense) * 100 : 0,
-      color: colorMap[name] || '#64748B'
+      amount: Number(categoryTotals[name] || 0),
+      pct: totalExpense > 0 ? (Number(categoryTotals[name] || 0) / totalExpense) * 100 : 0,
+      color: getCategoryColor(name, customColorMap)
     }))
-    .sort((a, b) => b.amount - a.amount);
+    .filter(cat => cat.amount > 0)
+    .sort((a, b) => b.amount - a.amount); // Higher expense strictly at top
 
   const displayedCategories = showAll ? sortedCategories : sortedCategories.slice(0, 5);
 
@@ -95,10 +109,10 @@ export default function CategorySpendsBar({ categoryTotals, customCategories, on
         )}
       </div>
 
-      {/* Category List */}
+      {/* Categories Sorted strictly by Highest Expense at Top */}
       <div className="categories-list">
         {displayedCategories.length === 0 ? (
-          <div className="empty-text">No category spends logged yet.</div>
+          <div className="empty-text">No category expenses recorded yet. Log an expense to view top categories!</div>
         ) : (
           displayedCategories.map((cat, idx) => (
             <div key={idx} className="category-row">
