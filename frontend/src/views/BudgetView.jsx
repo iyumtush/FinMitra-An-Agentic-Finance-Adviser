@@ -5,7 +5,7 @@ import { budgetApi } from '../api/budgetApi';
 import './BudgetView.css';
 
 export default function BudgetView() {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -17,7 +17,7 @@ export default function BudgetView() {
   const fetchBudgets = async () => {
     try {
       setLoading(true);
-      const data = await budgetApi.getBudgets(token);
+      const data = await budgetApi.getBudgets();
       setBudgets(data);
     } catch (err) {
       console.error('Failed to fetch budgets:', err);
@@ -27,10 +27,8 @@ export default function BudgetView() {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchBudgets();
-    }
-  }, [token]);
+    fetchBudgets();
+  }, []);
 
   const handleSaveBudget = async (e) => {
     e.preventDefault();
@@ -43,7 +41,7 @@ export default function BudgetView() {
         limitAmount: parseFloat(limit)
       };
 
-      await budgetApi.setBudget(token, payload);
+      await budgetApi.setBudget(payload);
       await fetchBudgets();
       setLimit('');
       setShowModal(false);

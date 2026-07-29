@@ -5,7 +5,7 @@ import { transactionApi } from '../api/transactionApi';
 import './TransactionsView.css';
 
 export default function TransactionsView({ onTransactionChange }) {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [txList, setTxList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -20,7 +20,7 @@ export default function TransactionsView({ onTransactionChange }) {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const data = await transactionApi.getTransactions(token);
+      const data = await transactionApi.getTransactions();
       setTxList(data);
       if (onTransactionChange) onTransactionChange(data);
     } catch (err) {
@@ -31,14 +31,12 @@ export default function TransactionsView({ onTransactionChange }) {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchTransactions();
-    }
-  }, [token]);
+    fetchTransactions();
+  }, []);
 
   const handleDelete = async (id) => {
     try {
-      await transactionApi.deleteTransaction(token, id);
+      await transactionApi.deleteTransaction(id);
       const updated = txList.filter(t => t.id !== id);
       setTxList(updated);
       if (onTransactionChange) onTransactionChange(updated);
@@ -61,7 +59,7 @@ export default function TransactionsView({ onTransactionChange }) {
         date
       };
 
-      const newTx = await transactionApi.createTransaction(token, payload);
+      const newTx = await transactionApi.createTransaction(payload);
       const updated = [newTx, ...txList];
       setTxList(updated);
       if (onTransactionChange) onTransactionChange(updated);
