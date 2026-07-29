@@ -10,7 +10,7 @@ This document serves as the master tracking document for **FinMitra**, outlining
 |---|---|---|---|
 | **Module 1** | User Authentication, JWT Security, & MySQL User Entity | Spring Boot, BCrypt, JJWT, MySQL | ✅ **Completed & Verified** |
 | **Module 1.5**| Frontend Web Application & Day/Dark Mode UI | React 18, Vite 5, Recharts, Lucide | ✅ **Completed & Verified** |
-| **Module 2** | Backend Persistence for Transactions & Budgets | Spring Boot JPA, MySQL, REST APIs | ✅ **Completed & Pushed** |
+| **Module 2** | Backend Persistence for Transactions & Budgets (Add, Edit, Delete) | Spring Boot JPA, MySQL, REST APIs | ✅ **Completed & Pushed** |
 | **Module 3** | AI Financial Advice Engine & Spending Analytics | Spring Boot, React, Custom AI Rule Engine | ⏳ **Planned (Next)** |
 | **Module 4** | Export & Reporting (CSV / PDF Export) | OpenPDF / Apache POI, React | ⏳ **Planned** |
 
@@ -87,6 +87,7 @@ CREATE TABLE budgets (
 ### Module 2: Transaction & Budget Endpoints (`/api/transactions`, `/api/budgets`)
 - `POST /api/transactions` — Add an income credit or expense debit for logged-in user.
 - `GET /api/transactions` — Fetch all transactions for logged-in user sorted by date.
+- `PUT /api/transactions/{id}` — Edit an existing transaction by ID.
 - `DELETE /api/transactions/{id}` — Delete a transaction by ID owned by logged-in user.
 - `POST /api/budgets` — Set/update monthly budget limit for a category.
 - `GET /api/budgets` — Fetch user's category budget limits vs actual spending.
