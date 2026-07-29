@@ -44,7 +44,7 @@ export default function DashboardPage() {
 
         <main className="content-grid">
           {activeTab === 'dashboard' && (
-            <DashboardView />
+            <DashboardView onNavigateTab={(tab) => setActiveTab(tab)} />
           )}
 
           {activeTab === 'transactions' && (

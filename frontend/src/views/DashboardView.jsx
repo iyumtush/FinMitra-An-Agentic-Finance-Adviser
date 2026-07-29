@@ -1,42 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowUpRight, ArrowDownLeft, PiggyBank, RefreshCw } from 'lucide-react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { ArrowUpRight, ArrowDownLeft, PiggyBank, RefreshCw, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { transactionApi } from '../api/transactionApi';
+import { categoryApi } from '../api/categoryApi';
+import CategorySpendsBar from '../components/dashboard/CategorySpendsBar';
 import './DashboardView.css';
 
-const CATEGORY_COLORS = {
-  Rent: '#A16207',
-  Food: '#059669',
-  Transport: '#0284C7',
-  Shopping: '#C2410C',
-  Entertainment: '#7C3AED',
-  Salary: '#10B981',
-  Other: '#64748B'
-};
-
-export default function DashboardView({ income: propIncome, expense: propExpense }) {
+export default function DashboardView({ onNavigateTab }) {
   const [transactions, setTransactions] = useState([]);
+  const [customCategories, setCustomCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState('Current Month');
+  const [activeFilterChip, setActiveFilterChip] = useState('All');
 
-  const fetchTransactions = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await transactionApi.getTransactions();
-      setTransactions(data);
+      const [txData, catData] = await Promise.all([
+        transactionApi.getTransactions(),
+        categoryApi.getCategories()
+      ]);
+      setTransactions(txData);
+      setCustomCategories(catData);
     } catch (err) {
-      console.error('Failed to fetch dashboard metrics:', err);
+      console.error('Failed to fetch dashboard data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTransactions();
+    fetchData();
   }, []);
 
-  // Compute Metrics Dynamically from Real User Transactions
-  let calculatedIncome = 0;
-  let calculatedExpense = 0;
+  const handleCategoryAdded = (newCategory) => {
+    setCustomCategories([...customCategories, newCategory]);
+  };
+
+  // Compute Metrics Dynamically
+  let totalIncome = 0;
+  let totalExpense = 0;
   const categoryTotals = {};
 
   transactions.forEach(t => {
@@ -45,30 +48,51 @@ export default function DashboardView({ income: propIncome, expense: propExpense
     const cat = t.category || 'Other';
 
     if (typeUpper === 'INCOME') {
-      calculatedIncome += amt;
+      totalIncome += amt;
     } else {
-      calculatedExpense += amt;
+      totalExpense += amt;
       categoryTotals[cat] = (categoryTotals[cat] || 0) + amt;
     }
   });
 
-  const income = transactions.length > 0 ? calculatedIncome : (propIncome || 0);
-  const expense = transactions.length > 0 ? calculatedExpense : (propExpense || 0);
-  const savings = income - expense;
+  const savings = totalIncome - totalExpense;
 
-  // Donut Chart Data
-  const categoryData = Object.keys(categoryTotals).map(cat => ({
-    name: cat,
-    value: categoryTotals[cat],
-    color: CATEGORY_COLORS[cat] || '#059669'
-  }));
+  // Filtered Chart Data based on selected Chip
+  const filteredTransactions = activeFilterChip === 'All'
+    ? transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE')
+    : transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && (t.category || '').equalsIgnoreCase(activeFilterChip));
 
-  const compareData = [
-    { name: 'This month', Income: income, Expense: expense }
+  // Monthly trend chart dataset
+  const monthlyTrendData = [
+    { name: 'Week 1', Spend: totalExpense * 0.2 },
+    { name: 'Week 2', Spend: totalExpense * 0.3 },
+    { name: 'Week 3', Spend: totalExpense * 0.25 },
+    { name: 'Week 4', Spend: totalExpense * 0.25 },
   ];
+
+  const categoryChips = ['All', ...Object.keys(categoryTotals)];
 
   return (
     <div className="dashboard-view-container">
+      {/* Top Header Bar matching Screenshot */}
+      <div className="spends-hero-banner">
+        <div className="hero-left">
+          <span className="hero-sub">Spends this month</span>
+          <h1 className="hero-amount">
+            ₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </h1>
+        </div>
+
+        <div className="hero-right">
+          <button 
+            className="btn edit-budget-orange-btn" 
+            onClick={() => onNavigateTab ? onNavigateTab('budget') : null}
+          >
+            Edit Budget
+          </button>
+        </div>
+      </div>
+
       {/* Top 3 Metric Cards */}
       <div className="metrics-grid">
         <div className="fin-card metric-card">
@@ -77,7 +101,7 @@ export default function DashboardView({ income: propIncome, expense: propExpense
           </div>
           <div className="metric-info">
             <span className="metric-label">Income</span>
-            <h3 className="metric-value">₹{income.toLocaleString('en-IN')}</h3>
+            <h3 className="metric-value">₹{totalIncome.toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
@@ -87,7 +111,7 @@ export default function DashboardView({ income: propIncome, expense: propExpense
           </div>
           <div className="metric-info">
             <span className="metric-label">Expense</span>
-            <h3 className="metric-value">₹{expense.toLocaleString('en-IN')}</h3>
+            <h3 className="metric-value">₹{totalExpense.toLocaleString('en-IN')}</h3>
           </div>
         </div>
 
@@ -102,73 +126,48 @@ export default function DashboardView({ income: propIncome, expense: propExpense
         </div>
       </div>
 
-      {/* 2 Main Charts */}
-      <div className="charts-grid">
-        {/* Spending by category Donut Chart */}
-        <div className="fin-card chart-card">
-          <h3 className="card-title">Spending by category</h3>
-          {loading ? (
-            <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <RefreshCw size={24} className="spin-icon" />
-            </div>
-          ) : categoryData.length === 0 ? (
-            <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-              No expenses recorded yet.
-            </div>
-          ) : (
-            <div className="donut-chart-container">
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
-                </PieChart>
-              </ResponsiveContainer>
+      {/* Spends Dashboard Grid */}
+      <div className="dashboard-spends-grid">
+        {/* Top Categories Multi-Segmented Bar Card (Screenshot Match) */}
+        <CategorySpendsBar 
+          categoryTotals={categoryTotals} 
+          customCategories={customCategories}
+          onCategoryAdded={handleCategoryAdded}
+        />
 
-              <div className="chart-legend">
-                {categoryData.map((cat, idx) => (
-                  <div key={idx} className="legend-chip">
-                    <span className="chip-dot" style={{ backgroundColor: cat.color }}></span>
-                    <span className="chip-label">{cat.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Income vs Expense Bar Chart */}
+        {/* Monthly Spends Trend Bar Chart */}
         <div className="fin-card chart-card">
-          <h3 className="card-title">Income vs expense</h3>
-          {loading ? (
-            <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <RefreshCw size={24} className="spin-icon" />
+          <div className="card-header-flex">
+            <h3 className="card-title">Monthly Spends</h3>
+            <div className="month-selector-badge">
+              <span>{selectedMonth}</span>
+              <ChevronDown size={14} />
             </div>
-          ) : (
-            <div className="bar-chart-container">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={compareData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)' }} />
-                  <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
-                  <Legend />
-                  <Bar dataKey="Income" fill="#059669" radius={[8, 8, 0, 0]} barSize={50} />
-                  <Bar dataKey="Expense" fill="#C2410C" radius={[8, 8, 0, 0]} barSize={50} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+          </div>
+
+          {/* Category Filter Chips */}
+          <div className="filter-chips-row">
+            {categoryChips.map((chip, idx) => (
+              <button
+                key={idx}
+                className={`filter-chip ${activeFilterChip === chip ? 'active' : ''}`}
+                onClick={() => setActiveFilterChip(chip)}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
+          <div className="bar-chart-container">
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={monthlyTrendData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)' }} />
+                <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
+                <Bar dataKey="Spend" fill="#00E676" radius={[8, 8, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
     </div>

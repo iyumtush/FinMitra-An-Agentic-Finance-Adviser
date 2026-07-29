@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Plus, X, Trash2, Edit2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { transactionApi } from '../api/transactionApi';
+import { categoryApi } from '../api/categoryApi';
 import './TransactionsView.css';
 
 export default function TransactionsView({ onTransactionChange }) {
   const { user } = useAuth();
   const [txList, setTxList] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingTx, setEditingTx] = useState(null);
@@ -18,21 +20,25 @@ export default function TransactionsView({ onTransactionChange }) {
   const [type, setType] = useState('Expense');
   const [amount, setAmount] = useState('');
 
-  const fetchTransactions = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await transactionApi.getTransactions();
-      setTxList(data);
-      if (onTransactionChange) onTransactionChange(data);
+      const [txData, catData] = await Promise.all([
+        transactionApi.getTransactions(),
+        categoryApi.getCategories()
+      ]);
+      setTxList(txData);
+      setCategories(catData);
+      if (onTransactionChange) onTransactionChange(txData);
     } catch (err) {
-      console.error('Failed to fetch transactions:', err);
+      console.error('Failed to fetch transactions or categories:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTransactions();
+    fetchData();
   }, []);
 
   const openAddModal = () => {
@@ -104,6 +110,11 @@ export default function TransactionsView({ onTransactionChange }) {
     }
   };
 
+  // Combine default categories with custom user categories
+  const defaultCats = ['To People', 'Health', 'Food, Beverages and Groceries', 'Travel & Transport', 'Online Shopping', 'Salary', 'Rent', 'Food', 'Transport', 'Shopping', 'Entertainment'];
+  const customCatNames = categories.map(c => c.name);
+  const allCategoryOptions = Array.from(new Set([...defaultCats, ...customCatNames]));
+
   return (
     <div className="transactions-view-container">
       <div className="view-header">
@@ -141,14 +152,14 @@ export default function TransactionsView({ onTransactionChange }) {
                   <tr key={tx.id}>
                     <td className="text-muted">{tx.date}</td>
                     <td>
-                      <span className={`badge-category ${tx.category.toLowerCase()}`}>
+                      <span className={`badge-category ${tx.category.toLowerCase().replace(/\s+/g, '-')}`}>
                         {tx.category}
                       </span>
                     </td>
                     <td className="font-semibold">{tx.note}</td>
                     <td className="text-muted">{tx.type}</td>
                     <td className={`font-semibold ${tx.type === 'INCOME' || tx.type === 'Income' ? 'text-green' : 'text-rose'}`}>
-                      {tx.type === 'INCOME' || tx.type === 'Income' ? '+' : '-'}₹{Number(tx.amount).toLocaleString('en-IN')}
+                      {tx.type === 'INCOME' || tx.type === 'Income' ? '+' : '-'}₹{Number(tx.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td>
                       <div className="actions-cell" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -221,12 +232,9 @@ export default function TransactionsView({ onTransactionChange }) {
               <div className="input-group">
                 <label>Category</label>
                 <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                  <option value="Salary">Salary</option>
-                  <option value="Rent">Rent</option>
-                  <option value="Food">Food</option>
-                  <option value="Transport">Transport</option>
-                  <option value="Shopping">Shopping</option>
-                  <option value="Entertainment">Entertainment</option>
+                  {allCategoryOptions.map((cat, idx) => (
+                    <option key={idx} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
 
@@ -245,6 +253,7 @@ export default function TransactionsView({ onTransactionChange }) {
                 <label>Amount (₹)</label>
                 <input 
                   type="number" 
+                  step="0.01"
                   placeholder="e.g. 5000" 
                   value={amount} 
                   onChange={(e) => setAmount(e.target.value)} 
