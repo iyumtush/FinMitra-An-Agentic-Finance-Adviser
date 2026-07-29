@@ -11,6 +11,7 @@ This document serves as the master tracking document for **FinMitra**, outlining
 | **Module 1** | User Authentication, JWT Security, & MySQL User Entity | Spring Boot, BCrypt, JJWT, MySQL | ✅ **Completed & Verified** |
 | **Module 1.5**| Frontend Web Application & Day/Dark Mode UI | React 18, Vite 5, Recharts, Lucide | ✅ **Completed & Verified** |
 | **Module 2** | Backend Persistence for Transactions & Budgets (Add, Edit, Delete) | Spring Boot JPA, MySQL, REST APIs | ✅ **Completed & Pushed** |
+| **Module 2.5**| Spends Dashboard UI & Custom Categories System | Spring Boot JPA, MySQL, React, Recharts | ✅ **Completed & Pushed** |
 | **Module 3** | AI Financial Advice Engine & Spending Analytics | Spring Boot, React, Custom AI Rule Engine | ⏳ **Planned (Next)** |
 | **Module 4** | Export & Reporting (CSV / PDF Export) | OpenPDF / Apache POI, React | ⏳ **Planned** |
 
@@ -75,6 +76,18 @@ CREATE TABLE budgets (
 );
 ```
 
+### 4. `categories` Table (Module 2.5)
+```sql
+CREATE TABLE categories (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    color VARCHAR(20) NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_user_category_name (user_id, name)
+);
+```
+
 ---
 
 ## 📡 REST APIs Catalog
@@ -92,6 +105,11 @@ CREATE TABLE budgets (
 - `POST /api/budgets` — Set/update monthly budget limit for a category.
 - `GET /api/budgets` — Fetch user's category budget limits vs actual spending.
 
+### Module 2.5: Custom Category Endpoints (`/api/categories`)
+- `POST /api/categories` — Create custom category with user-selected color.
+- `GET /api/categories` — Fetch user's custom categories.
+- `DELETE /api/categories/{id}` — Delete custom category.
+
 ---
 
 ## 📑 File Structure Map
@@ -104,19 +122,19 @@ FinMitra/
 │   ├── pom.xml
 │   └── src/main/java/com/finmitra/
 │       ├── config/           # SecurityConfig, CorsConfig
-│       ├── controller/       # AuthController, TestController, TransactionController, BudgetController
-│       ├── dto/              # Auth, Transaction, Budget DTOs
-│       ├── entity/           # User, Transaction, Budget entities
+│       ├── controller/       # AuthController, TestController, TransactionController, BudgetController, CategoryController
+│       ├── dto/              # Auth, Transaction, Budget, Category DTOs
+│       ├── entity/           # User, Transaction, Budget, Category entities
 │       ├── exception/        # GlobalExceptionHandler, APIException
-│       ├── repository/       # UserRepository, TransactionRepository, BudgetRepository
+│       ├── repository/       # UserRepository, TransactionRepository, BudgetRepository, CategoryRepository
 │       ├── security/         # JwtTokenProvider, JwtAuthenticationFilter, CustomUserDetailsService
-│       └── service/          # AuthService, TransactionService, BudgetService
+│       └── service/          # AuthService, TransactionService, BudgetService, CategoryService
 └── frontend/                 # React Vite frontend project
     ├── package.json
     ├── vite.config.js
     └── src/
-        ├── api/              # authApi, transactionApi, budgetApi
-        ├── components/       # Auth, Sidebar, TopHeader, Cards
+        ├── api/              # authApi, transactionApi, budgetApi, categoryApi
+        ├── components/       # Auth, Sidebar, TopHeader, Cards, OnboardingModal, CategorySpendsBar
         ├── context/          # AuthContext, ThemeContext
         ├── views/            # DashboardView, TransactionsView, BudgetView, AIInsightView
         └── index.css         # Dark & Day theme design system
