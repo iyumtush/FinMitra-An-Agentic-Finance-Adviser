@@ -65,10 +65,13 @@ public class BudgetServiceImpl implements BudgetService {
     }
 
     private BigDecimal calculateSpent(Long userId, String category) {
-        List<Transaction> userExpenses = transactionRepository.findByUserIdAndType(userId, "EXPENSE");
-        return userExpenses.stream()
-                .filter(t -> t.getCategory().equalsIgnoreCase(category))
-                .map(Transaction::getAmount)
+        if (category == null) return BigDecimal.ZERO;
+        
+        List<Transaction> allTransactions = transactionRepository.findByUserIdOrderByDateDescIdDesc(userId);
+        return allTransactions.stream()
+                .filter(t -> t.getType() != null && "EXPENSE".equalsIgnoreCase(t.getType()))
+                .filter(t -> t.getCategory() != null && t.getCategory().equalsIgnoreCase(category))
+                .map(t -> t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 

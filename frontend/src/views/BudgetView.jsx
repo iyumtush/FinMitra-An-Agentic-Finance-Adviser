@@ -9,6 +9,7 @@ export default function BudgetView() {
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   
   const [category, setCategory] = useState('Food');
   const [limit, setLimit] = useState('');
@@ -34,6 +35,7 @@ export default function BudgetView() {
   const handleSaveBudget = async (e) => {
     e.preventDefault();
     if (!limit) return;
+    setErrorMsg('');
 
     try {
       const payload = {
@@ -46,7 +48,9 @@ export default function BudgetView() {
       setLimit('');
       setShowModal(false);
     } catch (err) {
-      alert('Failed to save budget limit');
+      console.error('Save Budget Error:', err);
+      const backendMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Failed to save budget limit';
+      setErrorMsg(backendMsg);
     }
   };
 
@@ -124,6 +128,12 @@ export default function BudgetView() {
             </div>
 
             <form onSubmit={handleSaveBudget} className="modal-form">
+              {errorMsg && (
+                <div style={{ background: 'rgba(244,63,94,0.15)', color: 'var(--accent-rose)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.85rem' }}>
+                  {errorMsg}
+                </div>
+              )}
+
               <div className="input-group">
                 <label>Category</label>
                 <select value={category} onChange={(e) => setCategory(e.target.value)}>
