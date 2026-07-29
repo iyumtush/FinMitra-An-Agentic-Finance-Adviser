@@ -13,7 +13,7 @@ const initialTransactions = [
 export default function TransactionsTable({ initialType = null, showAddModal = false, onCloseModal, onTransactionAdded }) {
   const [transactions, setTransactions] = useState(initialTransactions);
   const [showModal, setShowModal] = useState(showAddModal);
-  
+
   const [type, setType] = useState(initialType || 'EXPENSE');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Groceries');
@@ -31,8 +31,8 @@ export default function TransactionsTable({ initialType = null, showAddModal = f
     if (!name || !amount) return;
 
     const numAmount = parseFloat(amount);
-    const formattedAmt = type === 'INCOME' 
-      ? `+$${numAmount.toFixed(2)}` 
+    const formattedAmt = type === 'INCOME'
+      ? `+$${numAmount.toFixed(2)}`
       : `-$${numAmount.toFixed(2)}`;
 
     const newTx = {
@@ -64,7 +64,7 @@ export default function TransactionsTable({ initialType = null, showAddModal = f
           <h3 className="card-title">Recent Transactions</h3>
           <span className="card-subtitle">Personal income & expense ledger</span>
         </div>
-        
+
         <div className="table-actions">
           <button className="btn-icon-pill">
             Last 30 Days <ChevronDown size={14} />
@@ -123,18 +123,18 @@ export default function TransactionsTable({ initialType = null, showAddModal = f
                 <X size={18} />
               </button>
             </div>
-            
+
             <form onSubmit={handleAddTransaction} className="modal-form">
               <div className="type-switcher">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className={`type-btn ${type === 'EXPENSE' ? 'active-expense' : ''}`}
                   onClick={() => setType('EXPENSE')}
                 >
                   Expense
                 </button>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className={`type-btn ${type === 'INCOME' ? 'active-income' : ''}`}
                   onClick={() => setType('INCOME')}
                 >
@@ -144,12 +144,12 @@ export default function TransactionsTable({ initialType = null, showAddModal = f
 
               <div className="input-group">
                 <label>Description / Recipient</label>
-                <input 
-                  type="text" 
-                  placeholder="e.g. Electricity Bill or Salary" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
-                  required 
+                <input
+                  type="text"
+                  placeholder="e.g. Electricity Bill or Salary"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
                 />
               </div>
 
@@ -168,13 +168,13 @@ export default function TransactionsTable({ initialType = null, showAddModal = f
 
               <div className="input-group">
                 <label>Amount ($)</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  placeholder="100.00" 
-                  value={amount} 
-                  onChange={(e) => setAmount(e.target.value)} 
-                  required 
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="100.00"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  required
                 />
               </div>
 

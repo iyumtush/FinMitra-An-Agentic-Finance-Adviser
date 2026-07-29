@@ -1,36 +1,53 @@
-import React, { useState } from 'react';
-import { Plus, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, AlertCircle, CheckCircle2, X, RefreshCw } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { budgetApi } from '../api/budgetApi';
 import './BudgetView.css';
 
-const initialBudgets = [
-  { id: 1, category: 'Food', spent: 8300, limit: 6000 },
-  { id: 2, category: 'Rent', spent: 10000, limit: 10000 },
-  { id: 3, category: 'Transport', spent: 1800, limit: 2000 },
-  { id: 4, category: 'Shopping', spent: 3400, limit: 2500 },
-];
-
 export default function BudgetView() {
-  const [budgets, setBudgets] = useState(initialBudgets);
+  const { token } = useAuth();
+  const [budgets, setBudgets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   
   const [category, setCategory] = useState('Food');
   const [limit, setLimit] = useState('');
 
-  const handleSaveBudget = (e) => {
+  const fetchBudgets = async () => {
+    try {
+      setLoading(true);
+      const data = await budgetApi.getBudgets(token);
+      setBudgets(data);
+    } catch (err) {
+      console.error('Failed to fetch budgets:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchBudgets();
+    }
+  }, [token]);
+
+  const handleSaveBudget = async (e) => {
     e.preventDefault();
     if (!limit) return;
 
-    const numLimit = parseFloat(limit);
-    const existing = budgets.find(b => b.category === category);
+    try {
+      const payload = {
+        category,
+        limitAmount: parseFloat(limit)
+      };
 
-    if (existing) {
-      setBudgets(budgets.map(b => b.category === category ? { ...b, limit: numLimit } : b));
-    } else {
-      setBudgets([...budgets, { id: Date.now(), category, spent: 0, limit: numLimit }]);
+      await budgetApi.setBudget(token, payload);
+      await fetchBudgets();
+      setLimit('');
+      setShowModal(false);
+    } catch (err) {
+      alert('Failed to save budget limit');
     }
-
-    setLimit('');
-    setShowModal(false);
   };
 
   return (
@@ -43,45 +60,57 @@ export default function BudgetView() {
         </button>
       </div>
 
-      <div className="budget-cards-grid">
-        {budgets.map((b) => {
-          const isOver = b.spent > b.limit;
-          const pct = Math.min(100, (b.spent / b.limit) * 100);
-          const diff = Math.abs(b.spent - b.limit);
+      {loading ? (
+        <div className="loading-state" style={{ padding: '40px', textAlign: 'center' }}>
+          <RefreshCw size={24} className="spin-icon" /> Loading live budget data...
+        </div>
+      ) : budgets.length === 0 ? (
+        <div className="fin-card empty-state" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+          No monthly budget limits set yet. Click "+ Set Budget Limit" to configure your first category limit!
+        </div>
+      ) : (
+        <div className="budget-cards-grid">
+          {budgets.map((b) => {
+            const spent = Number(b.spentAmount || 0);
+            const limitVal = Number(b.limitAmount || 0);
+            const isOver = spent > limitVal;
+            const pct = limitVal > 0 ? Math.min(100, (spent / limitVal) * 100) : 0;
+            const diff = Math.abs(spent - limitVal);
 
-          return (
-            <div key={b.id} className="fin-card budget-card">
-              <div className="budget-card-top">
-                <span className="budget-cat-title">{b.category}</span>
-                <span className="budget-cat-val">
-                  ₹{b.spent.toLocaleString('en-IN')} / ₹{b.limit.toLocaleString('en-IN')}
-                </span>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="progress-bar-bg">
-                <div 
-                  className={`progress-bar-fill ${isOver ? 'over' : 'good'}`} 
-                  style={{ width: `${pct}%` }}
-                ></div>
-              </div>
-
-              {/* Alert Status Footer */}
-              <div className="budget-card-bottom">
-                {isOver ? (
-                  <span className="budget-status over">
-                    <AlertCircle size={14} /> Over budget by ₹{diff.toLocaleString('en-IN')}
+            return (
+              <div key={b.id || b.category} className="fin-card budget-card">
+                <div className="budget-card-top">
+                  <span className="budget-cat-title">{b.category}</span>
+                  <span className="budget-cat-val">
+                    ₹{spent.toLocaleString('en-IN')} / ₹{limitVal.toLocaleString('en-IN')}
                   </span>
-                ) : (
-                  <span className="budget-status good">
-                    <CheckCircle2 size={14} /> ₹{diff.toLocaleString('en-IN')} remaining
-                  </span>
-                )}
+                </div>
+
+                {/* Progress Bar */}
+                <div className="progress-bar-bg">
+                  <div 
+                    className={`progress-bar-fill ${isOver ? 'over' : 'good'}`} 
+                    style={{ width: `${pct}%` }}
+                  ></div>
+                </div>
+
+                {/* Alert Status Footer */}
+                <div className="budget-card-bottom">
+                  {isOver ? (
+                    <span className="budget-status over">
+                      <AlertCircle size={14} /> Over budget by ₹{diff.toLocaleString('en-IN')}
+                    </span>
+                  ) : (
+                    <span className="budget-status good">
+                      <CheckCircle2 size={14} /> ₹{diff.toLocaleString('en-IN')} remaining
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Set Budget Modal */}
       {showModal && (
@@ -117,7 +146,7 @@ export default function BudgetView() {
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary full-btn">Save Budget Limit</button>
+              <button type="submit" className="btn btn-primary full-btn">Save Budget to MySQL</button>
             </form>
           </div>
         </div>

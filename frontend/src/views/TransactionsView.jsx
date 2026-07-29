@@ -1,52 +1,77 @@
-import React, { useState } from 'react';
-import { Plus, X, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Plus, X, Trash2, RefreshCw } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { transactionApi } from '../api/transactionApi';
 import './TransactionsView.css';
 
-const initialTxList = [
-  { id: 1, date: '2026-07-01', category: 'Salary', note: 'Monthly salary', type: 'Income', amount: 35000 },
-  { id: 2, date: '2026-07-02', category: 'Rent', note: 'House rent', type: 'Expense', amount: 10000 },
-  { id: 3, date: '2026-07-10', category: 'Food', note: 'Groceries + eating out', type: 'Expense', amount: 6200 },
-  { id: 4, date: '2026-07-12', category: 'Transport', note: 'Bus pass + auto', type: 'Expense', amount: 1800 },
-  { id: 5, date: '2026-07-18', category: 'Shopping', note: 'Clothes', type: 'Expense', amount: 3400 },
-  { id: 6, date: '2026-07-22', category: 'Food', note: 'Dining out', type: 'Expense', amount: 2100 },
-];
-
 export default function TransactionsView({ onTransactionChange }) {
-  const [txList, setTxList] = useState(initialTxList);
+  const { token } = useAuth();
+  const [txList, setTxList] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  
-  const [date, setDate] = useState('2026-07-26');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [category, setCategory] = useState('Food');
   const [note, setNote] = useState('');
   const [type, setType] = useState('Expense');
   const [amount, setAmount] = useState('');
 
-  const handleDelete = (id) => {
-    const updated = txList.filter(t => t.id !== id);
-    setTxList(updated);
-    if (onTransactionChange) onTransactionChange(updated);
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      const data = await transactionApi.getTransactions(token);
+      setTxList(data);
+      if (onTransactionChange) onTransactionChange(data);
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAdd = (e) => {
+  useEffect(() => {
+    if (token) {
+      fetchTransactions();
+    }
+  }, [token]);
+
+  const handleDelete = async (id) => {
+    try {
+      await transactionApi.deleteTransaction(token, id);
+      const updated = txList.filter(t => t.id !== id);
+      setTxList(updated);
+      if (onTransactionChange) onTransactionChange(updated);
+    } catch (err) {
+      alert('Failed to delete transaction');
+    }
+  };
+
+  const handleAdd = async (e) => {
     e.preventDefault();
     if (!amount || !note) return;
+    setErrorMsg('');
 
-    const newTx = {
-      id: Date.now(),
-      date,
-      category,
-      note,
-      type,
-      amount: parseFloat(amount)
-    };
+    try {
+      const payload = {
+        amount: parseFloat(amount),
+        category,
+        note,
+        type: type.toUpperCase(),
+        date
+      };
 
-    const updated = [newTx, ...txList];
-    setTxList(updated);
-    if (onTransactionChange) onTransactionChange(updated);
+      const newTx = await transactionApi.createTransaction(token, payload);
+      const updated = [newTx, ...txList];
+      setTxList(updated);
+      if (onTransactionChange) onTransactionChange(updated);
 
-    setNote('');
-    setAmount('');
-    setShowModal(false);
+      setNote('');
+      setAmount('');
+      setShowModal(false);
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || 'Failed to save transaction');
+    }
   };
 
   return (
@@ -60,46 +85,56 @@ export default function TransactionsView({ onTransactionChange }) {
       </div>
 
       <div className="fin-card table-card">
-        <div className="table-wrapper">
-          <table className="custom-table">
-            <thead>
-              <tr>
-                <th>DATE</th>
-                <th>CATEGORY</th>
-                <th>NOTE</th>
-                <th>TYPE</th>
-                <th>AMOUNT</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {txList.map((tx) => (
-                <tr key={tx.id}>
-                  <td className="text-muted">{tx.date}</td>
-                  <td>
-                    <span className={`badge-category ${tx.category.toLowerCase()}`}>
-                      {tx.category}
-                    </span>
-                  </td>
-                  <td className="font-semibold">{tx.note}</td>
-                  <td className="text-muted">{tx.type}</td>
-                  <td className={`font-semibold ${tx.type === 'Income' ? 'text-green' : 'text-rose'}`}>
-                    {tx.type === 'Income' ? '+' : '-'}₹{tx.amount.toLocaleString('en-IN')}
-                  </td>
-                  <td>
-                    <button 
-                      className="delete-btn" 
-                      onClick={() => handleDelete(tx.id)} 
-                      title="Delete Transaction"
-                    >
-                      <X size={16} />
-                    </button>
-                  </td>
+        {loading ? (
+          <div className="loading-state" style={{ padding: '30px', textAlign: 'center' }}>
+            <RefreshCw size={24} className="spin-icon" /> Loading your live transactions...
+          </div>
+        ) : txList.length === 0 ? (
+          <div className="empty-state" style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            No transactions found. Click "+ Add transaction" to log your first entry!
+          </div>
+        ) : (
+          <div className="table-wrapper">
+            <table className="custom-table">
+              <thead>
+                <tr>
+                  <th>DATE</th>
+                  <th>CATEGORY</th>
+                  <th>NOTE</th>
+                  <th>TYPE</th>
+                  <th>AMOUNT</th>
+                  <th>ACTIONS</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {txList.map((tx) => (
+                  <tr key={tx.id}>
+                    <td className="text-muted">{tx.date}</td>
+                    <td>
+                      <span className={`badge-category ${tx.category.toLowerCase()}`}>
+                        {tx.category}
+                      </span>
+                    </td>
+                    <td className="font-semibold">{tx.note}</td>
+                    <td className="text-muted">{tx.type}</td>
+                    <td className={`font-semibold ${tx.type === 'INCOME' || tx.type === 'Income' ? 'text-green' : 'text-rose'}`}>
+                      {tx.type === 'INCOME' || tx.type === 'Income' ? '+' : '-'}₹{Number(tx.amount).toLocaleString('en-IN')}
+                    </td>
+                    <td>
+                      <button 
+                        className="delete-btn" 
+                        onClick={() => handleDelete(tx.id)} 
+                        title="Delete Transaction"
+                      >
+                        <X size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Add Modal */}
@@ -114,6 +149,8 @@ export default function TransactionsView({ onTransactionChange }) {
             </div>
             
             <form onSubmit={handleAdd} className="modal-form">
+              {errorMsg && <div className="error-badge">{errorMsg}</div>}
+
               <div className="type-toggle">
                 <button 
                   type="button" 
@@ -174,7 +211,7 @@ export default function TransactionsView({ onTransactionChange }) {
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary full-btn">Save Transaction</button>
+              <button type="submit" className="btn btn-primary full-btn">Save to MySQL</button>
             </form>
           </div>
         </div>

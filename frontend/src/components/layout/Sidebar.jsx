@@ -1,10 +1,10 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Receipt, 
-  PieChart, 
-  Sparkles, 
-  LogOut 
+import {
+  LayoutDashboard,
+  Receipt,
+  PieChart,
+  Sparkles,
+  LogOut
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import './Sidebar.css';
@@ -26,10 +26,10 @@ export default function Sidebar({ activeTab, setActiveTab }) {
         <div className="sidebar-logo">
           <div className="logo-icon-badge">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-              <path d="M4 18L10 6L14 13L20 4" stroke="#00E676" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M4 18L10 6L14 13L20 4" stroke="#00E676" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <span className="logo-text">finMitra</span>
+          <span className="logo-text">FinMitra</span>
         </div>
 
         {/* Main Nav Links */}
