@@ -108,6 +108,31 @@
   }
 }
 
+.view-mode-pills {
+  display: flex;
+  background: var(--badge-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  padding: 3px;
+}
+
+.view-mode-pill {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-mode-pill.active {
+  background: var(--text-primary);
+  color: var(--bg-dark);
+}
+
 .month-selector-badge {
   display: inline-flex;
   align-items: center;

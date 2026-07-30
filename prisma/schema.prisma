@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = "mysql://root:TushNIIT123%23@localhost:3306/finmitra_db"
+}
+
+model User {
+  id           BigInt        @id @default(autoincrement())
+  email        String        @unique(map: "UK6dotkott2kjsp8vw4d0m25fb7") @db.VarChar(255)
+  name         String        @db.VarChar(255)
+  password     String        @db.VarChar(255)
+  budgets      Budget[]
+  categories   Category[]
+  transactions Transaction[]
+
+  @@map("users")
+}
+
+model Transaction {
+  id       BigInt   @id @default(autoincrement())
+  amount   Decimal  @db.Decimal(12, 2)
+  category String   @db.VarChar(255)
+  date     DateTime @db.Date
+  note     String   @db.VarChar(255)
+  type     String   @db.VarChar(255)
+  userId   BigInt   @map("user_id")
+  user     User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FKqwv7rmvc8va8rep7piikrojds")
+
+  @@index([userId], map: "FKqwv7rmvc8va8rep7piikrojds")
+  @@map("transactions")
+}
+
+model Budget {
+  id          BigInt  @id @default(autoincrement())
+  category    String  @db.VarChar(255)
+  limitAmount Decimal @map("limit_amount") @db.Decimal(12, 2)
+  userId      BigInt  @map("user_id")
+  user        User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FKln0tm5tgf3f9q3sp9sa5m8m7b")
+
+  @@unique([userId, category], map: "UKfyjjafhm35cygms1d4id2nj3q")
+  @@map("budgets")
+}
+
+model Category {
+  id     BigInt @id @default(autoincrement())
+  color  String @db.VarChar(255)
+  name   String @db.VarChar(255)
+  userId BigInt @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FKghuylkwuedgl2qahxjt8g41kb")
+
+  @@unique([userId, name], map: "UKn22vnmml6mjq0j6i24cavceas")
+  @@map("categories")
+}

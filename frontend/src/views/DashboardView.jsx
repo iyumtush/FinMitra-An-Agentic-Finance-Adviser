@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowUpRight, ArrowDownLeft, PiggyBank, RefreshCw, SlidersHorizontal, ChevronDown } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { ArrowUpRight, ArrowDownLeft, PiggyBank, RefreshCw, ChevronDown, Calendar } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { transactionApi } from '../api/transactionApi';
 import { categoryApi } from '../api/categoryApi';
 import CategorySpendsBar from '../components/dashboard/CategorySpendsBar';
@@ -12,16 +12,17 @@ export default function DashboardView({ onNavigateTab }) {
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState('Current Month');
   const [activeFilterChip, setActiveFilterChip] = useState('All');
+  const [viewMode, setViewMode] = useState('weeks'); // 'days' or 'weeks'
 
   const fetchData = async () => {
     try {
       setLoading(true);
       const [txData, catData] = await Promise.all([
         transactionApi.getTransactions(),
-        categoryApi.getCategories()
+        categoryApi.getCategories().catch(() => [])
       ]);
       setTransactions(txData);
-      setCustomCategories(catData);
+      setCustomCategories(catData || []);
     } catch (err) {
       console.error('Failed to fetch dashboard data:', err);
     } finally {
@@ -37,7 +38,7 @@ export default function DashboardView({ onNavigateTab }) {
     setCustomCategories([...customCategories, newCategory]);
   };
 
-  // Compute Metrics Dynamically
+  // Compute Overall Income & Expense Metrics
   let totalIncome = 0;
   let totalExpense = 0;
   const categoryTotals = {};
@@ -57,19 +58,81 @@ export default function DashboardView({ onNavigateTab }) {
 
   const savings = totalIncome - totalExpense;
 
-  // Filtered Chart Data based on selected Chip
-  const filteredTransactions = activeFilterChip === 'All'
-    ? transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE')
-    : transactions.filter(t => (t.type || '').toUpperCase() === 'EXPENSE' && (t.category || '').equalsIgnoreCase(activeFilterChip));
+  // Filter Expense Transactions matching selected Filter Chip
+  const expenseTx = transactions.filter(t => {
+    const isExpense = (t.type || '').toUpperCase() === 'EXPENSE';
+    if (!isExpense) return false;
+    if (activeFilterChip === 'All') return true;
+    return (t.category || '').equalsIgnoreCase(activeFilterChip);
+  });
 
-  // Monthly trend chart dataset
-  const monthlyTrendData = [
-    { name: 'Week 1', Spend: totalExpense * 0.2 },
-    { name: 'Week 2', Spend: totalExpense * 0.3 },
-    { name: 'Week 3', Spend: totalExpense * 0.25 },
-    { name: 'Week 4', Spend: totalExpense * 0.25 },
-  ];
+  // Calculate Real Trend Data based on View Mode ('days' vs 'weeks')
+  let realTrendData = [];
 
+  if (viewMode === 'days') {
+    // DAYS OF WEEK MODE: Mon, Tue, Wed, Thu, Fri, Sat, Sun
+    const daysMap = {
+      'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0, 'Sun': 0
+    };
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    expenseTx.forEach(t => {
+      if (!t.date) return;
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) return;
+      const dayName = dayNames[d.getDay()];
+      if (daysMap[dayName] !== undefined) {
+        daysMap[dayName] += Number(t.amount || 0);
+      }
+    });
+
+    realTrendData = [
+      { name: 'Mon', Spend: daysMap['Mon'] },
+      { name: 'Tue', Spend: daysMap['Tue'] },
+      { name: 'Wed', Spend: daysMap['Wed'] },
+      { name: 'Thu', Spend: daysMap['Thu'] },
+      { name: 'Fri', Spend: daysMap['Fri'] },
+      { name: 'Sat', Spend: daysMap['Sat'] },
+      { name: 'Sun', Spend: daysMap['Sun'] },
+    ];
+  } else {
+    // WEEKS OF MONTH MODE: Week 1, Week 2, Week 3, Week 4, Week 5
+    const weeksMap = {
+      'Week 1': 0,
+      'Week 2': 0,
+      'Week 3': 0,
+      'Week 4': 0,
+      'Week 5': 0
+    };
+
+    expenseTx.forEach(t => {
+      if (!t.date) return;
+      const d = new Date(t.date);
+      if (isNaN(d.getTime())) return;
+      const dayOfMonth = d.getDate();
+
+      if (dayOfMonth >= 1 && dayOfMonth <= 7) weeksMap['Week 1'] += Number(t.amount || 0);
+      else if (dayOfMonth >= 8 && dayOfMonth <= 14) weeksMap['Week 2'] += Number(t.amount || 0);
+      else if (dayOfMonth >= 15 && dayOfMonth <= 21) weeksMap['Week 3'] += Number(t.amount || 0);
+      else if (dayOfMonth >= 22 && dayOfMonth <= 28) weeksMap['Week 4'] += Number(t.amount || 0);
+      else if (dayOfMonth >= 29) weeksMap['Week 5'] += Number(t.amount || 0);
+    });
+
+    realTrendData = [
+      { name: 'Week 1', Spend: weeksMap['Week 1'] },
+      { name: 'Week 2', Spend: weeksMap['Week 2'] },
+      { name: 'Week 3', Spend: weeksMap['Week 3'] },
+      { name: 'Week 4', Spend: weeksMap['Week 4'] },
+    ];
+
+    if (weeksMap['Week 5'] > 0) {
+      realTrendData.push({ name: 'Week 5', Spend: weeksMap['Week 5'] });
+    }
+  }
+
+  // Check if all periods have 0 spend for current filter
+  const hasSpendData = realTrendData.some(item => item.Spend > 0);
   const categoryChips = ['All', ...Object.keys(categoryTotals)];
 
   return (
@@ -128,7 +191,7 @@ export default function DashboardView({ onNavigateTab }) {
 
       {/* Spends Dashboard Grid */}
       <div className="dashboard-spends-grid">
-        {/* Top Categories Multi-Segmented Bar Card (Screenshot Match) */}
+        {/* Top Categories Multi-Segmented Bar Card */}
         <CategorySpendsBar 
           categoryTotals={categoryTotals} 
           customCategories={customCategories}
@@ -137,11 +200,32 @@ export default function DashboardView({ onNavigateTab }) {
 
         {/* Monthly Spends Trend Bar Chart */}
         <div className="fin-card chart-card">
-          <div className="card-header-flex">
+          <div className="card-header-flex" style={{ flexWrap: 'wrap', gap: '12px' }}>
             <h3 className="card-title">Monthly Spends</h3>
-            <div className="month-selector-badge">
-              <span>{selectedMonth}</span>
-              <ChevronDown size={14} />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Days vs Weeks View Mode Toggle */}
+              <div className="view-mode-pills">
+                <button 
+                  className={`view-mode-pill ${viewMode === 'days' ? 'active' : ''}`}
+                  onClick={() => setViewMode('days')}
+                  title="View by Days of Week"
+                >
+                  Days
+                </button>
+                <button 
+                  className={`view-mode-pill ${viewMode === 'weeks' ? 'active' : ''}`}
+                  onClick={() => setViewMode('weeks')}
+                  title="View by Weeks of Month"
+                >
+                  Weeks
+                </button>
+              </div>
+
+              <div className="month-selector-badge">
+                <span>{selectedMonth}</span>
+                <ChevronDown size={14} />
+              </div>
             </div>
           </div>
 
@@ -159,14 +243,25 @@ export default function DashboardView({ onNavigateTab }) {
           </div>
 
           <div className="bar-chart-container">
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={monthlyTrendData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)' }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)' }} />
-                <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
-                <Bar dataKey="Spend" fill="#00E676" radius={[8, 8, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+            {loading ? (
+              <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <RefreshCw size={24} className="spin-icon" />
+              </div>
+            ) : !hasSpendData ? (
+              <div style={{ height: 240, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '8px', fontSize: '0.88rem' }}>
+                <Calendar size={28} />
+                <span>No expense transactions logged for {activeFilterChip === 'All' ? 'this month' : activeFilterChip} yet.</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={realTrendData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)' }} />
+                  <Tooltip formatter={(value) => `₹${Number(value).toLocaleString('en-IN')}`} />
+                  <Bar dataKey="Spend" fill="#00E676" radius={[8, 8, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
