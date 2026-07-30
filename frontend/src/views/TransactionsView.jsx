@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, X, Trash2, Edit2, RefreshCw, Sparkles } from 'lucide-react';
+import { Plus, X, Trash2, Edit2, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { transactionApi } from '../api/transactionApi';
 import { categoryApi } from '../api/categoryApi';
@@ -101,7 +101,6 @@ export default function TransactionsView({ onTransactionChange }) {
     let finalCategory = selectedCategoryOption;
 
     try {
-      // If user selected "+ Add Custom Category...", create it in MySQL first
       if (selectedCategoryOption === '__CUSTOM__') {
         if (!customCategoryInput.trim()) {
           setErrorMsg('Please enter a custom category name');
@@ -116,7 +115,6 @@ export default function TransactionsView({ onTransactionChange }) {
           finalCategory = newCat.name;
           setCustomCategories([...customCategories, newCat]);
         } catch (catErr) {
-          // If category already exists, use the name
           finalCategory = customCategoryInput.trim();
         }
       }
@@ -148,7 +146,6 @@ export default function TransactionsView({ onTransactionChange }) {
     }
   };
 
-  // Combine Category Options
   const customNames = customCategories.map(c => c.name);
   const allCategoryOptions = Array.from(new Set([...BUILT_IN_CATEGORIES, ...customNames]));
 
@@ -266,7 +263,6 @@ export default function TransactionsView({ onTransactionChange }) {
                 />
               </div>
 
-              {/* Category Dropdown with "+ Add Custom Category" option */}
               <div className="input-group">
                 <label>Category</label>
                 <select 
@@ -280,7 +276,6 @@ export default function TransactionsView({ onTransactionChange }) {
                 </select>
               </div>
 
-              {/* Custom Category Input if selected */}
               {selectedCategoryOption === '__CUSTOM__' && (
                 <div style={{ background: 'var(--badge-bg)', padding: '14px', borderRadius: '14px', border: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div className="input-group">
@@ -334,7 +329,7 @@ export default function TransactionsView({ onTransactionChange }) {
               </div>
 
               <button type="submit" className="btn btn-primary full-btn">
-                {editingTx ? 'Update Transaction' : 'Save to MySQL'}
+                {editingTx ? 'Update' : 'Save'}
               </button>
             </form>
           </div>

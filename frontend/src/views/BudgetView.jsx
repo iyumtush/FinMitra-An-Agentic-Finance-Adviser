@@ -262,7 +262,7 @@ export default function BudgetView() {
               </div>
 
               <button type="submit" className="btn btn-primary full-btn">
-                {editingBudget ? 'Update Budget Limit' : 'Save Budget to MySQL'}
+                {editingBudget ? 'Update' : 'Save'}
               </button>
             </form>
           </div>
