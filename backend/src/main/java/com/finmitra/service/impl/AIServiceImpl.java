@@ -34,7 +34,7 @@ public class AIServiceImpl implements AIService {
     @Value("${gemini.api.key:AIzaSyAueqYx9GZetsU4M2MTcUJEGX9MZpdVTw0}")
     private String geminiApiKey;
 
-    @Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent}")
+    @Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent}")
     private String geminiApiUrl;
 
     public AIServiceImpl(UserRepository userRepository,
@@ -117,7 +117,7 @@ public class AIServiceImpl implements AIService {
 
         // Attempt Gemini API call for enhanced insight summary
         try {
-            String prompt = String.format("You are Mitra AI, an intelligent personal finance assistant. User Name: %s. Total Income: ₹%.2f, Total Expenses: ₹%.2f, Net Savings: ₹%.2f, Top Category: %s (₹%.2f). Write a warm 2-sentence financial summary addressing %s.",
+            String prompt = String.format("You are FinMitra AI, an intelligent personal finance assistant. User Name: %s. Total Income: ₹%.2f, Total Expenses: ₹%.2f, Net Savings: ₹%.2f, Top Category: %s (₹%.2f). Write a warm 2-sentence financial summary addressing %s.",
                     user.getName(), totalIncome, totalExpense, savings, topCatName, topCatAmount, user.getName());
             String geminiSummary = callGeminiApi(prompt);
             if (geminiSummary != null && !geminiSummary.trim().isEmpty()) {
@@ -167,7 +167,7 @@ public class AIServiceImpl implements AIService {
         String userQuery = request.getMessage().trim();
 
         String systemPrompt = String.format(
-                "You are Mitra AI, a friendly personal finance AI assistant for FinMitra. " +
+                "You are FinMitra AI, a friendly personal finance AI assistant for FinMitra. " +
                 "You are chatting with %s. " +
                 "If the user greets you (e.g. hello, hi, hey, how are you), respond warmly using their name '%s' (e.g. 'Hi %s! How are you doing today? How can I help with your finances?'). " +
                 "If the user asks about their income, expenses, budget, savings, or advice, answer accurately based on the CONTEXT below. " +
@@ -195,7 +195,7 @@ public class AIServiceImpl implements AIService {
         } else if (lowerQuery.contains("how are you")) {
             fallbackReply = String.format("I'm doing great, %s! Thanks for asking. Ready to help you analyze your budget or savings!", user.getName());
         } else if (lowerQuery.contains("who are you") || lowerQuery.contains("your name")) {
-            fallbackReply = String.format("I'm Mitra AI, your personal AI financial assistant in FinMitra!", user.getName());
+            fallbackReply = String.format("I'm FinMitra AI, your personal AI financial assistant in FinMitra!", user.getName());
         } else if (lowerQuery.contains("income") || lowerQuery.contains("salary") || lowerQuery.contains("earned")) {
             fallbackReply = String.format("Hi %s, your total logged income is ₹%,.2f.", user.getName(), totalIncome);
         } else if (lowerQuery.contains("expense") || lowerQuery.contains("spent") || lowerQuery.contains("spend")) {

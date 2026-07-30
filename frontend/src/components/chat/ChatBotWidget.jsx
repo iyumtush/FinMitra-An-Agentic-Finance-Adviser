@@ -7,7 +7,7 @@ export default function ChatBotWidget({ isFloating = false, onClose }) {
   const [messages, setMessages] = useState([
     {
       sender: 'ai',
-      text: "👋 Hi! I'm Mitra AI, your personal financial assistant. Ask me anything about your income, expenses, category spending, or savings tips!",
+      text: "👋 Hi! I'm FinMitra AI, your personal financial assistant. Ask me anything about your income, expenses, category spending, or savings tips!",
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -72,7 +72,7 @@ export default function ChatBotWidget({ isFloating = false, onClose }) {
             <Bot size={20} color="#00E676" />
           </div>
           <div>
-            <h4 className="bot-name">Mitra AI Assistant</h4>
+            <h4 className="bot-name">FinMitra AI Assistant</h4>
             <span className="bot-status">● Active Financial Advisor</span>
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function ChatBotWidget({ isFloating = false, onClose }) {
       <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="chatbot-input-form">
         <input 
           type="text" 
-          placeholder="Ask Mitra AI about your finances..."
+          placeholder="Ask FinMitra AI about your finances..."
           value={inputMsg}
           onChange={(e) => setInputMsg(e.target.value)}
           disabled={loading}
