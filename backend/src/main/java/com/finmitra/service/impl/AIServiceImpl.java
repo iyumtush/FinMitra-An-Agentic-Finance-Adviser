@@ -1,5 +1,7 @@
 package com.finmitra.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finmitra.dto.AIInsightResponse;
 import com.finmitra.dto.ChatRequest;
 import com.finmitra.dto.ChatResponse;
@@ -11,13 +13,14 @@ import com.finmitra.repository.BudgetRepository;
 import com.finmitra.repository.TransactionRepository;
 import com.finmitra.repository.UserRepository;
 import com.finmitra.service.AIService;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class AIServiceImpl implements AIService {
@@ -25,6 +28,14 @@ public class AIServiceImpl implements AIService {
     private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
+    private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
+
+    @Value("${gemini.api.key:AIzaSyAueqYx9GZetsU4M2MTcUJEGX9MZpdVTw0}")
+    private String geminiApiKey;
+
+    @Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent}")
+    private String geminiApiUrl;
 
     public AIServiceImpl(UserRepository userRepository,
                          TransactionRepository transactionRepository,
@@ -32,6 +43,8 @@ public class AIServiceImpl implements AIService {
         this.userRepository = userRepository;
         this.transactionRepository = transactionRepository;
         this.budgetRepository = budgetRepository;
+        this.restTemplate = new RestTemplate();
+        this.objectMapper = new ObjectMapper();
     }
 
     @Override
@@ -61,10 +74,8 @@ public class AIServiceImpl implements AIService {
 
         BigDecimal savings = totalIncome.subtract(totalExpense);
 
-        // Find Top Expense Category
         String topCatName = "None";
         BigDecimal topCatAmount = BigDecimal.ZERO;
-
         for (Map.Entry<String, BigDecimal> entry : categoryTotals.entrySet()) {
             if (entry.getValue().compareTo(topCatAmount) > 0) {
                 topCatAmount = entry.getValue();
@@ -72,16 +83,10 @@ public class AIServiceImpl implements AIService {
             }
         }
 
-        // 1. Monthly Summary Text
-        String summary;
-        if (transactions.isEmpty()) {
-          summary = "Welcome " + user.getName() + "! No transactions recorded yet. Log your income and expenses to generate personalized AI insights.";
-        } else {
-          summary = String.format("You earned ₹%,.2f and spent ₹%,.2f this period, leaving ₹%,.2f in net savings. Your highest spend category was %s at ₹%,.2f.",
-                  totalIncome, totalExpense, savings, topCatName, topCatAmount);
-        }
+        // Rule-Based Defaults
+        String summary = String.format("You earned ₹%,.2f and spent ₹%,.2f this period, leaving ₹%,.2f in net savings. Your highest spend category was %s at ₹%,.2f.",
+                totalIncome, totalExpense, savings, topCatName, topCatAmount);
 
-        // 2. Saving Suggestions
         List<String> suggestions = new ArrayList<>();
         if (!topCatName.equals("None") && topCatAmount.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal cut15 = topCatAmount.multiply(new BigDecimal("0.15")).setScale(2, RoundingMode.HALF_UP);
@@ -89,7 +94,6 @@ public class AIServiceImpl implements AIService {
                     topCatName, topCatAmount, cut15));
         }
 
-        // Check budget warnings
         for (Budget b : budgets) {
             BigDecimal spent = categoryTotals.getOrDefault(b.getCategory(), BigDecimal.ZERO);
             if (spent.compareTo(b.getLimitAmount()) > 0) {
@@ -103,13 +107,24 @@ public class AIServiceImpl implements AIService {
             suggestions.add("Try setting a fixed weekly spending cap for non-essential purchases like dining out and online shopping.");
         }
 
-        // 3. Growth Idea
         String growth;
         if (savings.compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal sip = savings.multiply(new BigDecimal("0.30")).setScale(2, RoundingMode.HALF_UP);
             growth = String.format("With ₹%,.2f in net savings, allocating 30%% (₹%,.2f/month) into a Recurring Deposit (RD) or Index Fund SIP can build long-term wealth safely.", savings, sip);
         } else {
             growth = "Focus on bringing expenses below total income. Once consistent savings are built, explore SIPs or liquid mutual funds as a starting point.";
+        }
+
+        // Attempt Gemini API call for enhanced insight summary
+        try {
+            String prompt = String.format("As a professional AI financial advisor named Mitra AI, analyze this user data for %s: Total Income: ₹%.2f, Total Expenses: ₹%.2f, Net Savings: ₹%.2f, Highest Category: %s (₹%.2f). Give a short 2-sentence encouraging monthly summary.",
+                    user.getName(), totalIncome, totalExpense, savings, topCatName, topCatAmount);
+            String geminiSummary = callGeminiApi(prompt);
+            if (geminiSummary != null && !geminiSummary.trim().isEmpty()) {
+                summary = geminiSummary.trim();
+            }
+        } catch (Exception e) {
+            System.err.println("Gemini API fallback for insights: " + e.getMessage());
         }
 
         return new AIInsightResponse(summary, suggestions, growth, totalIncome, totalExpense, savings, topCatName);
@@ -120,7 +135,6 @@ public class AIServiceImpl implements AIService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND, "User not found"));
 
-        String message = request.getMessage().toLowerCase();
         List<Transaction> transactions = transactionRepository.findByUserIdOrderByDateDescIdDesc(user.getId());
         List<Budget> budgets = budgetRepository.findByUserId(user.getId());
 
@@ -137,65 +151,85 @@ public class AIServiceImpl implements AIService {
                 totalIncome = totalIncome.add(amt);
             } else {
                 totalExpense = totalExpense.add(amt);
-                categoryTotals.put(cat.toLowerCase(), categoryTotals.getOrDefault(cat.toLowerCase(), BigDecimal.ZERO).add(amt));
+                categoryTotals.put(cat, categoryTotals.getOrDefault(cat, BigDecimal.ZERO).add(amt));
             }
         }
 
         BigDecimal savings = totalIncome.subtract(totalExpense);
 
-        // Find Top Category
-        String topCatName = "None";
-        BigDecimal topCatAmount = BigDecimal.ZERO;
-        for (Map.Entry<String, BigDecimal> entry : categoryTotals.entrySet()) {
-            if (entry.getValue().compareTo(topCatAmount) > 0) {
-                topCatAmount = entry.getValue();
-                topCatName = entry.getKey();
+        // Build Full Context Prompt for Gemini API
+        StringBuilder contextBuilder = new StringBuilder();
+        contextBuilder.append(String.format("User Profile: %s (%s)\n", user.getName(), user.getEmail()));
+        contextBuilder.append(String.format("Financial Summary: Total Income = ₹%.2f, Total Expense = ₹%.2f, Net Savings = ₹%.2f\n",
+                totalIncome, totalExpense, savings));
+        contextBuilder.append("Expenses by Category:\n");
+        categoryTotals.forEach((cat, val) -> contextBuilder.append(String.format("- %s: ₹%.2f\n", cat, val)));
+        contextBuilder.append("Monthly Budgets:\n");
+        budgets.forEach(b -> contextBuilder.append(String.format("- %s: Limit ₹%.2f\n", b.getCategory(), b.getLimitAmount())));
+
+        String systemPrompt = "You are Mitra AI, an expert, friendly AI Personal Finance Assistant for FinMitra. " +
+                "Answer the user's question concisely based on their exact financial context provided below. " +
+                "Use currency symbol ₹ and keep responses under 4 sentences.\n\n" +
+                "CONTEXT:\n" + contextBuilder.toString() + "\n" +
+                "USER QUESTION: " + request.getMessage();
+
+        try {
+            String geminiReply = callGeminiApi(systemPrompt);
+            if (geminiReply != null && !geminiReply.trim().isEmpty()) {
+                return new ChatResponse(geminiReply.trim());
             }
+        } catch (Exception e) {
+            System.err.println("Gemini API Error: " + e.getMessage());
         }
 
-        // Conversational AI Logic matching user prompt
-        String reply;
+        // Rule-Based Fallback if API offline
+        String userQuery = request.getMessage().toLowerCase();
+        String fallbackReply;
 
-        if (message.contains("income") || message.contains("salary") || message.contains("earned")) {
-            reply = String.format("Hi %s! Your total logged income is ₹%,.2f across %d income entries.",
-                    user.getName(), totalIncome, transactions.stream().filter(t -> "INCOME".equalsIgnoreCase(t.getType())).count());
-        } else if (message.contains("expense") || message.contains("spent") || message.contains("spend")) {
-            // Check if specific category mentioned in query
-            Optional<String> matchedCat = categoryTotals.keySet().stream().filter(c -> message.contains(c)).findFirst();
-            if (matchedCat.isPresent()) {
-                String catName = matchedCat.get();
-                BigDecimal catAmt = categoryTotals.get(catName);
-                reply = String.format("You have spent ₹%,.2f on '%s' this period.", catAmt, catName);
-            } else {
-                reply = String.format("Your total expenses stand at ₹%,.2f. Your highest spend category is '%s' at ₹%,.2f.",
-                        totalExpense, topCatName, topCatAmount);
-            }
-        } else if (message.contains("saving") || message.contains("saved") || message.contains("balance")) {
-            reply = String.format("You have saved ₹%,.2f this period (Income: ₹%,.2f - Expense: ₹%,.2f).",
-                    savings, totalIncome, totalExpense);
-        } else if (message.contains("budget") || message.contains("limit")) {
-            if (budgets.isEmpty()) {
-                reply = "You haven't set any monthly category budget limits yet. Click 'Set Budget Limit' in the Budget tab to add one!";
-            } else {
-                StringBuilder sb = new StringBuilder("Here is your current budget status:\n");
-                for (Budget b : budgets) {
-                    BigDecimal spent = categoryTotals.getOrDefault(b.getCategory().toLowerCase(), BigDecimal.ZERO);
-                    boolean over = spent.compareTo(b.getLimitAmount()) > 0;
-                    sb.append(String.format("• %s: ₹%,.2f / ₹%,.2f %s\n",
-                            b.getCategory(), spent, b.getLimitAmount(), over ? "⚠️ OVER BUDGET" : "✅ ON TRACK"));
-                }
-                reply = sb.toString();
-            }
-        } else if (message.contains("highest") || message.contains("top") || message.contains("biggest")) {
-            reply = String.format("Your biggest single expense category is '%s' with a total spend of ₹%,.2f.", topCatName, topCatAmount);
-        } else if (message.contains("tip") || message.contains("advice") || message.contains("how to save")) {
-            reply = String.format("Mitra AI Tip: Your net savings are ₹%,.2f. Consider cutting 10%% off your '%s' spending (saving ~₹%,.2f) and putting it into an RD or SIP!",
-                    savings, topCatName, topCatAmount.multiply(new BigDecimal("0.10")));
+        if (userQuery.contains("income") || userQuery.contains("salary")) {
+            fallbackReply = String.format("Your total logged income is ₹%,.2f.", totalIncome);
+        } else if (userQuery.contains("expense") || userQuery.contains("spent")) {
+            fallbackReply = String.format("Your total expenses stand at ₹%,.2f.", totalExpense);
+        } else if (userQuery.contains("saving") || userQuery.contains("balance")) {
+            fallbackReply = String.format("Your net savings are ₹%,.2f (Income: ₹%,.2f - Expense: ₹%,.2f).", savings, totalIncome, totalExpense);
         } else {
-            reply = String.format("I'm Mitra AI, your personal financial assistant! You can ask me about your income (₹%,.2f), total expenses (₹%,.2f), savings (₹%,.2f), category spends, or budget limits.",
-                    totalIncome, totalExpense, savings);
+            fallbackReply = String.format("Mitra AI: You earned ₹%,.2f, spent ₹%,.2f, and saved ₹%,.2f this period.", totalIncome, totalExpense, savings);
         }
 
-        return new ChatResponse(reply);
+        return new ChatResponse(fallbackReply);
+    }
+
+    private String callGeminiApi(String promptText) throws Exception {
+        if (geminiApiKey == null || geminiApiKey.trim().isEmpty()) {
+            return null;
+        }
+
+        String fullUrl = geminiApiUrl + "?key=" + geminiApiKey;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> textPart = new HashMap<>();
+        textPart.put("text", promptText);
+
+        Map<String, Object> partsObj = new HashMap<>();
+        partsObj.put("parts", Collections.singletonList(textPart));
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("contents", Collections.singletonList(partsObj));
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+        ResponseEntity<String> response = restTemplate.postForEntity(fullUrl, entity, String.class);
+
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode candidates = root.path("candidates");
+            if (candidates.isArray() && candidates.size() > 0) {
+                JsonNode textNode = candidates.get(0).path("content").path("parts").get(0).path("text");
+                return textNode.asText();
+            }
+        }
+        return null;
     }
 }
