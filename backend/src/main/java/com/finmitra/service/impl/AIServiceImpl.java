@@ -151,30 +151,66 @@ public class AIServiceImpl implements AIService {
                 totalIncome = totalIncome.add(amt);
             } else {
                 totalExpense = totalExpense.add(amt);
-                categoryTotals.put(cat.toLowerCase(), categoryTotals.getOrDefault(cat.toLowerCase(), BigDecimal.ZERO).add(amt));
+                categoryTotals.put(cat, categoryTotals.getOrDefault(cat, BigDecimal.ZERO).add(amt));
             }
         }
 
         BigDecimal savings = totalIncome.subtract(totalExpense);
 
-        // Build Context for Gemini API
+        // Find Top Expense Category
+        String topCatName = "None";
+        BigDecimal topCatAmount = BigDecimal.ZERO;
+        for (Map.Entry<String, BigDecimal> entry : categoryTotals.entrySet()) {
+            if (entry.getValue().compareTo(topCatAmount) > 0) {
+                topCatAmount = entry.getValue();
+                topCatName = entry.getKey();
+            }
+        }
+
+        // Build Comprehensive Data Context for Gemini API
         StringBuilder contextBuilder = new StringBuilder();
-        contextBuilder.append(String.format("User Name: %s (Email: %s)\n", user.getName(), user.getEmail()));
-        contextBuilder.append(String.format("Income: ₹%.2f, Expenses: ₹%.2f, Savings: ₹%.2f\n", totalIncome, totalExpense, savings));
-        contextBuilder.append("Category Expenses:\n");
-        categoryTotals.forEach((cat, val) -> contextBuilder.append(String.format("- %s: ₹%.2f\n", cat, val)));
+        contextBuilder.append(String.format("USER PROFILE: %s (Email: %s)\n", user.getName(), user.getEmail()));
+        contextBuilder.append(String.format("OVERVIEW: Total Income = ₹%.2f, Total Expense = ₹%.2f, Net Savings = ₹%.2f\n\n",
+                totalIncome, totalExpense, savings));
+
+        contextBuilder.append("EXPENSES BY CATEGORY:\n");
+        if (categoryTotals.isEmpty()) {
+            contextBuilder.append("No expenses recorded yet.\n");
+        } else {
+            categoryTotals.forEach((cat, val) -> contextBuilder.append(String.format("- %s: ₹%.2f\n", cat, val)));
+        }
+
+        contextBuilder.append("\nMONTHLY BUDGET LIMITS:\n");
+        if (budgets.isEmpty()) {
+            contextBuilder.append("No monthly budget limits set.\n");
+        } else {
+            budgets.forEach(b -> contextBuilder.append(String.format("- %s: Limit ₹%.2f\n", b.getCategory(), b.getLimitAmount())));
+        }
+
+        contextBuilder.append("\nRECENT TRANSACTIONS LOGGED:\n");
+        if (transactions.isEmpty()) {
+            contextBuilder.append("No transactions logged yet.\n");
+        } else {
+            for (Transaction t : transactions) {
+                contextBuilder.append(String.format("- Date: %s | Type: %s | Category: %s | Note: %s | Amount: ₹%.2f\n",
+                        t.getDate(), t.getType(), t.getCategory(), t.getNote(), t.getAmount()));
+            }
+        }
 
         String userQuery = request.getMessage().trim();
 
         String systemPrompt = String.format(
-                "You are FinMitra AI, a friendly personal finance AI assistant for FinMitra. " +
-                "You are chatting with %s. " +
-                "If the user greets you (e.g. hello, hi, hey, how are you), respond warmly using their name '%s' (e.g. 'Hi %s! How are you doing today? How can I help with your finances?'). " +
-                "If the user asks about their income, expenses, budget, savings, or advice, answer accurately based on the CONTEXT below. " +
-                "Keep responses friendly, helpful, and concise (under 3 sentences).\n\n" +
-                "USER CONTEXT:\n%s\n" +
+                "You are FinMitra AI, a personal financial AI assistant for %s. " +
+                "Analyze the user's REAL FINANCIAL DATA below to answer their question directly, accurately, and naturally.\n" +
+                "RULES:\n" +
+                "1. Always address the user as %s.\n" +
+                "2. If asked about top/highest expense category, check the EXPENSES BY CATEGORY list and state the category and amount.\n" +
+                "3. If asked about specific transactions, notes, or categories, answer strictly using the provided data.\n" +
+                "4. If asked something completely irrelevant to finance/budgeting/savings (e.g. sports, weather, cooking), politely reply: 'That question is unrelated to your financial data! Feel free to ask me about your expenses, budgets, or savings.'\n" +
+                "5. Keep responses friendly, helpful, and concise (under 3 sentences).\n\n" +
+                "REAL USER FINANCIAL DATA:\n%s\n\n" +
                 "USER QUESTION: %s",
-                user.getName(), user.getName(), user.getName(), contextBuilder.toString(), userQuery
+                user.getName(), user.getName(), contextBuilder.toString(), userQuery
         );
 
         try {
@@ -196,14 +232,33 @@ public class AIServiceImpl implements AIService {
             fallbackReply = String.format("I'm doing great, %s! Thanks for asking. Ready to help you analyze your budget or savings!", user.getName());
         } else if (lowerQuery.contains("who are you") || lowerQuery.contains("your name")) {
             fallbackReply = String.format("I'm FinMitra AI, your personal AI financial assistant in FinMitra!", user.getName());
+        } else if ((lowerQuery.contains("which") || lowerQuery.contains("what") || lowerQuery.contains("highest") || lowerQuery.contains("most"))
+                && (lowerQuery.contains("category") || lowerQuery.contains("spend") || lowerQuery.contains("expense"))) {
+            if (!topCatName.equals("None") && topCatAmount.compareTo(BigDecimal.ZERO) > 0) {
+                fallbackReply = String.format("Hi %s, you spend the most money on '%s' with a total expense of ₹%,.2f.",
+                        user.getName(), topCatName, topCatAmount);
+            } else {
+                fallbackReply = String.format("Hi %s, you haven't logged any category expenses yet.", user.getName());
+            }
         } else if (lowerQuery.contains("income") || lowerQuery.contains("salary") || lowerQuery.contains("earned")) {
             fallbackReply = String.format("Hi %s, your total logged income is ₹%,.2f.", user.getName(), totalIncome);
         } else if (lowerQuery.contains("expense") || lowerQuery.contains("spent") || lowerQuery.contains("spend")) {
-            fallbackReply = String.format("Hi %s, your total expenses are ₹%,.2f.", user.getName(), totalExpense);
+            // Check specific category match
+            Optional<String> matchedCat = categoryTotals.keySet().stream().filter(c -> lowerQuery.contains(c.toLowerCase())).findFirst();
+            if (matchedCat.isPresent()) {
+                String catName = matchedCat.get();
+                BigDecimal catAmt = categoryTotals.get(catName);
+                fallbackReply = String.format("Hi %s, you have spent ₹%,.2f on '%s' this period.", user.getName(), catAmt, catName);
+            } else {
+                fallbackReply = String.format("Hi %s, your total expenses are ₹%,.2f. Your highest spend category is '%s' (₹%,.2f).",
+                        user.getName(), totalExpense, topCatName, topCatAmount);
+            }
         } else if (lowerQuery.contains("saving") || lowerQuery.contains("balance")) {
             fallbackReply = String.format("Hi %s, your net savings stand at ₹%,.2f (Income: ₹%,.2f - Expense: ₹%,.2f).", user.getName(), savings, totalIncome, totalExpense);
+        } else if (lowerQuery.contains("weather") || lowerQuery.contains("recipe") || lowerQuery.contains("match") || lowerQuery.contains("movie") || lowerQuery.contains("cricket")) {
+            fallbackReply = String.format("Hi %s, that question is unrelated to your financial data! Feel free to ask me about your expenses, budgets, or savings.", user.getName());
         } else {
-            fallbackReply = String.format("Hi %s! You have earned ₹%,.2f and spent ₹%,.2f this period. Ask me about any category spend, budget, or savings tips!",
+            fallbackReply = String.format("Hi %s! You have earned ₹%,.2f and spent ₹%,.2f this period. Ask me about your category spends, top expenses, budgets, or savings tips!",
                     user.getName(), totalIncome, totalExpense);
         }
 
