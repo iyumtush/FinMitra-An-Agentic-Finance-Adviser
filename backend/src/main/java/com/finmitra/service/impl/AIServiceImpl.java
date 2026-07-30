@@ -84,8 +84,8 @@ public class AIServiceImpl implements AIService {
         }
 
         // Rule-Based Defaults
-        String summary = String.format("You earned ₹%,.2f and spent ₹%,.2f this period, leaving ₹%,.2f in net savings. Your highest spend category was %s at ₹%,.2f.",
-                totalIncome, totalExpense, savings, topCatName, topCatAmount);
+        String summary = String.format("Hi %s! You earned ₹%,.2f and spent ₹%,.2f this period, leaving ₹%,.2f in net savings. Your highest spend category was %s at ₹%,.2f.",
+                user.getName(), totalIncome, totalExpense, savings, topCatName, topCatAmount);
 
         List<String> suggestions = new ArrayList<>();
         if (!topCatName.equals("None") && topCatAmount.compareTo(BigDecimal.ZERO) > 0) {
@@ -117,8 +117,8 @@ public class AIServiceImpl implements AIService {
 
         // Attempt Gemini API call for enhanced insight summary
         try {
-            String prompt = String.format("As a professional AI financial advisor named Mitra AI, analyze this user data for %s: Total Income: ₹%.2f, Total Expenses: ₹%.2f, Net Savings: ₹%.2f, Highest Category: %s (₹%.2f). Give a short 2-sentence encouraging monthly summary.",
-                    user.getName(), totalIncome, totalExpense, savings, topCatName, topCatAmount);
+            String prompt = String.format("You are Mitra AI, an intelligent personal finance assistant. User Name: %s. Total Income: ₹%.2f, Total Expenses: ₹%.2f, Net Savings: ₹%.2f, Top Category: %s (₹%.2f). Write a warm 2-sentence financial summary addressing %s.",
+                    user.getName(), totalIncome, totalExpense, savings, topCatName, topCatAmount, user.getName());
             String geminiSummary = callGeminiApi(prompt);
             if (geminiSummary != null && !geminiSummary.trim().isEmpty()) {
                 summary = geminiSummary.trim();
@@ -151,27 +151,31 @@ public class AIServiceImpl implements AIService {
                 totalIncome = totalIncome.add(amt);
             } else {
                 totalExpense = totalExpense.add(amt);
-                categoryTotals.put(cat, categoryTotals.getOrDefault(cat, BigDecimal.ZERO).add(amt));
+                categoryTotals.put(cat.toLowerCase(), categoryTotals.getOrDefault(cat.toLowerCase(), BigDecimal.ZERO).add(amt));
             }
         }
 
         BigDecimal savings = totalIncome.subtract(totalExpense);
 
-        // Build Full Context Prompt for Gemini API
+        // Build Context for Gemini API
         StringBuilder contextBuilder = new StringBuilder();
-        contextBuilder.append(String.format("User Profile: %s (%s)\n", user.getName(), user.getEmail()));
-        contextBuilder.append(String.format("Financial Summary: Total Income = ₹%.2f, Total Expense = ₹%.2f, Net Savings = ₹%.2f\n",
-                totalIncome, totalExpense, savings));
-        contextBuilder.append("Expenses by Category:\n");
+        contextBuilder.append(String.format("User Name: %s (Email: %s)\n", user.getName(), user.getEmail()));
+        contextBuilder.append(String.format("Income: ₹%.2f, Expenses: ₹%.2f, Savings: ₹%.2f\n", totalIncome, totalExpense, savings));
+        contextBuilder.append("Category Expenses:\n");
         categoryTotals.forEach((cat, val) -> contextBuilder.append(String.format("- %s: ₹%.2f\n", cat, val)));
-        contextBuilder.append("Monthly Budgets:\n");
-        budgets.forEach(b -> contextBuilder.append(String.format("- %s: Limit ₹%.2f\n", b.getCategory(), b.getLimitAmount())));
 
-        String systemPrompt = "You are Mitra AI, an expert, friendly AI Personal Finance Assistant for FinMitra. " +
-                "Answer the user's question concisely based on their exact financial context provided below. " +
-                "Use currency symbol ₹ and keep responses under 4 sentences.\n\n" +
-                "CONTEXT:\n" + contextBuilder.toString() + "\n" +
-                "USER QUESTION: " + request.getMessage();
+        String userQuery = request.getMessage().trim();
+
+        String systemPrompt = String.format(
+                "You are Mitra AI, a friendly personal finance AI assistant for FinMitra. " +
+                "You are chatting with %s. " +
+                "If the user greets you (e.g. hello, hi, hey, how are you), respond warmly using their name '%s' (e.g. 'Hi %s! How are you doing today? How can I help with your finances?'). " +
+                "If the user asks about their income, expenses, budget, savings, or advice, answer accurately based on the CONTEXT below. " +
+                "Keep responses friendly, helpful, and concise (under 3 sentences).\n\n" +
+                "USER CONTEXT:\n%s\n" +
+                "USER QUESTION: %s",
+                user.getName(), user.getName(), user.getName(), contextBuilder.toString(), userQuery
+        );
 
         try {
             String geminiReply = callGeminiApi(systemPrompt);
@@ -182,18 +186,25 @@ public class AIServiceImpl implements AIService {
             System.err.println("Gemini API Error: " + e.getMessage());
         }
 
-        // Rule-Based Fallback if API offline
-        String userQuery = request.getMessage().toLowerCase();
+        // Smart Conversational Fallback Engine
+        String lowerQuery = userQuery.toLowerCase();
         String fallbackReply;
 
-        if (userQuery.contains("income") || userQuery.contains("salary")) {
-            fallbackReply = String.format("Your total logged income is ₹%,.2f.", totalIncome);
-        } else if (userQuery.contains("expense") || userQuery.contains("spent")) {
-            fallbackReply = String.format("Your total expenses stand at ₹%,.2f.", totalExpense);
-        } else if (userQuery.contains("saving") || userQuery.contains("balance")) {
-            fallbackReply = String.format("Your net savings are ₹%,.2f (Income: ₹%,.2f - Expense: ₹%,.2f).", savings, totalIncome, totalExpense);
+        if (lowerQuery.matches(".*\\b(hello|hi|hey|greetings|hola)\\b.*")) {
+            fallbackReply = String.format("Hi %s! How are you doing today? How can I help you manage your finances or track your spending?", user.getName());
+        } else if (lowerQuery.contains("how are you")) {
+            fallbackReply = String.format("I'm doing great, %s! Thanks for asking. Ready to help you analyze your budget or savings!", user.getName());
+        } else if (lowerQuery.contains("who are you") || lowerQuery.contains("your name")) {
+            fallbackReply = String.format("I'm Mitra AI, your personal AI financial assistant in FinMitra!", user.getName());
+        } else if (lowerQuery.contains("income") || lowerQuery.contains("salary") || lowerQuery.contains("earned")) {
+            fallbackReply = String.format("Hi %s, your total logged income is ₹%,.2f.", user.getName(), totalIncome);
+        } else if (lowerQuery.contains("expense") || lowerQuery.contains("spent") || lowerQuery.contains("spend")) {
+            fallbackReply = String.format("Hi %s, your total expenses are ₹%,.2f.", user.getName(), totalExpense);
+        } else if (lowerQuery.contains("saving") || lowerQuery.contains("balance")) {
+            fallbackReply = String.format("Hi %s, your net savings stand at ₹%,.2f (Income: ₹%,.2f - Expense: ₹%,.2f).", user.getName(), savings, totalIncome, totalExpense);
         } else {
-            fallbackReply = String.format("Mitra AI: You earned ₹%,.2f, spent ₹%,.2f, and saved ₹%,.2f this period.", totalIncome, totalExpense, savings);
+            fallbackReply = String.format("Hi %s! You have earned ₹%,.2f and spent ₹%,.2f this period. Ask me about any category spend, budget, or savings tips!",
+                    user.getName(), totalIncome, totalExpense);
         }
 
         return new ChatResponse(fallbackReply);
