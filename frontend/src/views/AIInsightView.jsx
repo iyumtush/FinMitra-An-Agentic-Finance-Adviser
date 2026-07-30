@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, RefreshCw, Lightbulb, TrendingUp, Compass, Bot } from 'lucide-react';
+import { Sparkles, RefreshCw, Lightbulb, TrendingUp, Compass } from 'lucide-react';
 import { aiApi } from '../api/aiApi';
 import ChatBotWidget from '../components/chat/ChatBotWidget';
 import './AIInsightView.css';
@@ -17,7 +17,7 @@ export default function AIInsightView() {
       setInsights(data);
     } catch (err) {
       console.error('Failed to fetch AI insights:', err);
-      setErrorMsg('Failed to generate AI financial insights. Please log transactions and try again.');
+      setErrorMsg('Failed to generate AI financial insights. Please make sure the backend is running and try again.');
     } finally {
       setLoading(false);
     }
@@ -33,7 +33,7 @@ export default function AIInsightView() {
         <div>
           <h2 className="view-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Sparkles className="sparkle-icon" size={24} color="#00E676" />
-            AI Financial Insights & Advisor
+            FinMitra AI Insights & Advisor
           </h2>
           <p className="view-subtitle" style={{ color: 'var(--text-muted)', fontSize: '0.88rem', marginTop: '4px' }}>
             Real-time contextual analysis computed from your live database entries
