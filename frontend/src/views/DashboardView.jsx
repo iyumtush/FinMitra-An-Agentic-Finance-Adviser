@@ -6,8 +6,11 @@ import { categoryApi } from '../api/categoryApi';
 import CategorySpendsBar from '../components/dashboard/CategorySpendsBar';
 import './DashboardView.css';
 
+const getCurrentMonthName = () => {
+  return new Date().toLocaleDateString('en-US', { month: 'long' });
+};
+
 const MONTHS_LIST = [
-  'Current Month',
   'January',
   'February',
   'March',
@@ -32,7 +35,7 @@ export default function DashboardView({ onNavigateTab }) {
   const [transactions, setTransactions] = useState([]);
   const [customCategories, setCustomCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState('Current Month');
+  const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthName());
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [activeFilterChip, setActiveFilterChip] = useState('All');
   const [viewMode, setViewMode] = useState('weeks'); // 'days' or 'weeks'
@@ -80,11 +83,6 @@ export default function DashboardView({ onNavigateTab }) {
 
     const d = new Date(t.date);
     if (isNaN(d.getTime())) return true;
-
-    if (selectedMonth === 'Current Month') {
-      const now = new Date();
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }
 
     const targetMonthIndex = MONTH_INDEX_MAP[selectedMonth];
     if (targetMonthIndex !== undefined) {
@@ -197,7 +195,7 @@ export default function DashboardView({ onNavigateTab }) {
       <div className="spends-hero-banner">
         <div className="hero-left">
           <span className="hero-sub">
-            {selectedMonth === 'Current Month' ? 'Spends this month' : selectedMonth === 'All Months' ? 'Spends across all months' : `Spends in ${selectedMonth}`}
+            {selectedMonth === getCurrentMonthName() ? 'Spends this month' : selectedMonth === 'All Months' ? 'Spends across all months' : `Spends in ${selectedMonth}`}
           </span>
           <h1 className="hero-amount">
             ₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -344,7 +342,7 @@ export default function DashboardView({ onNavigateTab }) {
             ) : !hasSpendData ? (
               <div style={{ height: 240, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '8px', fontSize: '0.88rem' }}>
                 <Calendar size={28} />
-                <span>No expense transactions logged for {selectedMonth === 'Current Month' ? 'this month' : selectedMonth} yet.</span>
+                <span>No expense transactions logged for {selectedMonth === getCurrentMonthName() ? 'this month' : selectedMonth} yet.</span>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
