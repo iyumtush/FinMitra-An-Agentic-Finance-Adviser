@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowUpRight, ArrowDownLeft, PiggyBank, RefreshCw, ChevronDown, Calendar } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { transactionApi } from '../api/transactionApi';
@@ -6,13 +6,48 @@ import { categoryApi } from '../api/categoryApi';
 import CategorySpendsBar from '../components/dashboard/CategorySpendsBar';
 import './DashboardView.css';
 
+const MONTHS_LIST = [
+  'Current Month',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+  'All Months'
+];
+
+const MONTH_INDEX_MAP = {
+  'January': 0, 'February': 1, 'March': 2, 'April': 3, 'May': 4, 'June': 5,
+  'July': 6, 'August': 7, 'September': 8, 'October': 9, 'November': 10, 'December': 11
+};
+
 export default function DashboardView({ onNavigateTab }) {
   const [transactions, setTransactions] = useState([]);
   const [customCategories, setCustomCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState('Current Month');
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [activeFilterChip, setActiveFilterChip] = useState('All');
   const [viewMode, setViewMode] = useState('weeks'); // 'days' or 'weeks'
+
+  const monthDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (monthDropdownRef.current && !monthDropdownRef.current.contains(event.target)) {
+        setIsMonthDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -38,12 +73,33 @@ export default function DashboardView({ onNavigateTab }) {
     setCustomCategories([...customCategories, newCategory]);
   };
 
-  // Compute Overall Income & Expense Metrics
+  // Filter transactions based on selected month
+  const filteredTransactions = transactions.filter(t => {
+    if (selectedMonth === 'All Months') return true;
+    if (!t.date) return true;
+
+    const d = new Date(t.date);
+    if (isNaN(d.getTime())) return true;
+
+    if (selectedMonth === 'Current Month') {
+      const now = new Date();
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }
+
+    const targetMonthIndex = MONTH_INDEX_MAP[selectedMonth];
+    if (targetMonthIndex !== undefined) {
+      return d.getMonth() === targetMonthIndex;
+    }
+
+    return true;
+  });
+
+  // Compute Overall Income & Expense Metrics for selected month
   let totalIncome = 0;
   let totalExpense = 0;
   const categoryTotals = {};
 
-  transactions.forEach(t => {
+  filteredTransactions.forEach(t => {
     const amt = Number(t.amount || 0);
     const typeUpper = t.type ? t.type.toUpperCase() : 'EXPENSE';
     const cat = t.category || 'Other';
@@ -59,11 +115,11 @@ export default function DashboardView({ onNavigateTab }) {
   const savings = totalIncome - totalExpense;
 
   // Filter Expense Transactions matching selected Filter Chip
-  const expenseTx = transactions.filter(t => {
+  const expenseTx = filteredTransactions.filter(t => {
     const isExpense = (t.type || '').toUpperCase() === 'EXPENSE';
     if (!isExpense) return false;
     if (activeFilterChip === 'All') return true;
-    return (t.category || '').equalsIgnoreCase(activeFilterChip);
+    return (t.category || '').toLowerCase() === activeFilterChip.toLowerCase();
   });
 
   // Calculate Real Trend Data based on View Mode ('days' vs 'weeks')
@@ -140,7 +196,9 @@ export default function DashboardView({ onNavigateTab }) {
       {/* Top Header Bar matching Screenshot */}
       <div className="spends-hero-banner">
         <div className="hero-left">
-          <span className="hero-sub">Spends this month</span>
+          <span className="hero-sub">
+            {selectedMonth === 'Current Month' ? 'Spends this month' : selectedMonth === 'All Months' ? 'Spends across all months' : `Spends in ${selectedMonth}`}
+          </span>
           <h1 className="hero-amount">
             ₹{totalExpense.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h1>
@@ -222,9 +280,45 @@ export default function DashboardView({ onNavigateTab }) {
                 </button>
               </div>
 
-              <div className="month-selector-badge">
-                <span>{selectedMonth}</span>
-                <ChevronDown size={14} />
+              {/* Month Selector Dropdown */}
+              <div className="month-selector-wrapper" ref={monthDropdownRef}>
+                <button 
+                  type="button"
+                  className={`month-selector-badge ${isMonthDropdownOpen ? 'active' : ''}`}
+                  onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                  aria-label="Select month"
+                >
+                  <span>{selectedMonth}</span>
+                  <ChevronDown 
+                    size={14} 
+                    style={{ 
+                      transform: isMonthDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s ease'
+                    }} 
+                  />
+                </button>
+
+                {isMonthDropdownOpen && (
+                  <div className="month-dropdown-menu">
+                    <div className="month-dropdown-header">Select Month</div>
+                    <div className="month-dropdown-list">
+                      {MONTHS_LIST.map((month) => (
+                        <button
+                          key={month}
+                          type="button"
+                          className={`month-dropdown-item ${selectedMonth === month ? 'selected' : ''}`}
+                          onClick={() => {
+                            setSelectedMonth(month);
+                            setIsMonthDropdownOpen(false);
+                          }}
+                        >
+                          <span>{month}</span>
+                          {selectedMonth === month && <span className="checkmark">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -250,7 +344,7 @@ export default function DashboardView({ onNavigateTab }) {
             ) : !hasSpendData ? (
               <div style={{ height: 240, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '8px', fontSize: '0.88rem' }}>
                 <Calendar size={28} />
-                <span>No expense transactions logged for {activeFilterChip === 'All' ? 'this month' : activeFilterChip} yet.</span>
+                <span>No expense transactions logged for {selectedMonth === 'Current Month' ? 'this month' : selectedMonth} yet.</span>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
@@ -268,3 +362,4 @@ export default function DashboardView({ onNavigateTab }) {
     </div>
   );
 }
+
