@@ -31,7 +31,7 @@ public class AIServiceImpl implements AIService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    @Value("${gemini.api.key:AIzaSyAueqYx9GZetsU4M2MTcUJEGX9MZpdVTw0}")
+    @Value("${gemini.api.key:}")
     private String geminiApiKey;
 
     @Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent}")
