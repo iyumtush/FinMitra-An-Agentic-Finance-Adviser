@@ -51,11 +51,13 @@ api.interceptors.response.use(
 );
 
 export const signupUser = async (name, email, password) => {
+  console.log('Sending signup request to:', API_BASE_URL + '/auth/signup', { name, email });
   const response = await api.post('/auth/signup', { name, email, password });
   return response.data;
 };
 
 export const loginUser = async (email, password) => {
+  console.log('Sending login request to:', API_BASE_URL + '/auth/login', { email });
   const response = await api.post('/auth/login', { email, password });
   return response.data;
 };
