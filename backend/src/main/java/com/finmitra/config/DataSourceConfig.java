@@ -109,6 +109,11 @@ public class DataSourceConfig {
             selectedDriver = "com.mysql.cj.jdbc.Driver";
         }
 
+        config.setInitializationFailTimeout(-1);
+        config.setConnectionTimeout(30000);
+        config.setMaximumPoolSize(10);
+        config.setMinimumIdle(2);
+
         config.setJdbcUrl(rawUrl);
         if (dbUser != null && !dbUser.trim().isEmpty()) {
             config.setUsername(dbUser);
