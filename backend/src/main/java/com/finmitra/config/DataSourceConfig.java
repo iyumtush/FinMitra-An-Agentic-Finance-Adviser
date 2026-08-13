@@ -102,8 +102,8 @@ public class DataSourceConfig {
             rawUrl = rawUrl.replaceAll("\\?channel_binding=[^&]*", "?").replaceAll("\\?\\s*$", "");
         }
 
-        // Auto-detect driver if PostgreSQL/NeonDB URL is detected
-        if (rawUrl != null && (rawUrl.startsWith("jdbc:postgresql://") || rawUrl.contains("postgres") || rawUrl.contains("neon.tech"))) {
+        // Auto-detect driver if PostgreSQL (NeonDB / Supabase) URL is detected
+        if (rawUrl != null && (rawUrl.startsWith("jdbc:postgresql://") || rawUrl.contains("postgres") || rawUrl.contains("neon.tech") || rawUrl.contains("supabase"))) {
             selectedDriver = "org.postgresql.Driver";
         } else if (selectedDriver == null || selectedDriver.trim().isEmpty()) {
             selectedDriver = "com.mysql.cj.jdbc.Driver";

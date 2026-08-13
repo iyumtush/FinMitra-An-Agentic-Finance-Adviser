@@ -99,27 +99,32 @@ public class DataInitializer implements CommandLineRunner {
             budgetRepository.save(rentBudget);
         }
 
-        // Auto-synchronize PostgreSQL primary key sequences if running on PostgreSQL
+        // Auto-synchronize PostgreSQL primary key sequences ONLY if running on PostgreSQL
         try {
-            entityManager.createNativeQuery(
-                "DO $$ " +
-                "BEGIN " +
-                "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN " +
-                "       PERFORM setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1)); " +
-                "   END IF; " +
-                "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'transactions') THEN " +
-                "       PERFORM setval(pg_get_serial_sequence('transactions', 'id'), COALESCE((SELECT MAX(id) FROM transactions), 1)); " +
-                "   END IF; " +
-                "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'budgets') THEN " +
-                "       PERFORM setval(pg_get_serial_sequence('budgets', 'id'), COALESCE((SELECT MAX(id) FROM budgets), 1)); " +
-                "   END IF; " +
-                "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'categories') THEN " +
-                "       PERFORM setval(pg_get_serial_sequence('categories', 'id'), COALESCE((SELECT MAX(id) FROM categories), 1)); " +
-                "   END IF; " +
-                "END $$;"
-            ).executeUpdate();
+            java.sql.Connection conn = entityManager.unwrap(java.sql.Connection.class);
+            if (conn != null && conn.getMetaData() != null && 
+                conn.getMetaData().getDatabaseProductName().toLowerCase().contains("postgres")) {
+                
+                entityManager.createNativeQuery(
+                    "DO $$ " +
+                    "BEGIN " +
+                    "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN " +
+                    "       PERFORM setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1)); " +
+                    "   END IF; " +
+                    "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'transactions') THEN " +
+                    "       PERFORM setval(pg_get_serial_sequence('transactions', 'id'), COALESCE((SELECT MAX(id) FROM transactions), 1)); " +
+                    "   END IF; " +
+                    "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'budgets') THEN " +
+                    "       PERFORM setval(pg_get_serial_sequence('budgets', 'id'), COALESCE((SELECT MAX(id) FROM budgets), 1)); " +
+                    "   END IF; " +
+                    "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'categories') THEN " +
+                    "       PERFORM setval(pg_get_serial_sequence('categories', 'id'), COALESCE((SELECT MAX(id) FROM categories), 1)); " +
+                    "   END IF; " +
+                    "END $$;"
+                ).executeUpdate();
+            }
         } catch (Exception e) {
-            // Non-PostgreSQL databases (MySQL) will ignore this block cleanly
+            // Non-PostgreSQL databases (e.g. MySQL) will bypass cleanly
         }
     }
 }
