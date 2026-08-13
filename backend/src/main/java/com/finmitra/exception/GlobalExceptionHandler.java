@@ -49,9 +49,10 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorDetails> handleGlobalException(Exception exception, WebRequest webRequest) {
+        exception.printStackTrace();
         ErrorDetails errorDetails = new ErrorDetails(
                 new Date(),
-                exception.getMessage(),
+                exception.getMessage() != null ? exception.getMessage() : "An unexpected server error occurred",
                 webRequest.getDescription(false)
         );
         return new ResponseEntity<>(errorDetails, HttpStatus.INTERNAL_SERVER_ERROR);

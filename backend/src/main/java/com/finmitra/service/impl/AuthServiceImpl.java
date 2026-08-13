@@ -34,15 +34,16 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse signup(SignupRequest signupRequest) {
+        String normalizedEmail = signupRequest.getEmail().trim().toLowerCase();
         // Check if email is already registered
-        if (userRepository.existsByEmail(signupRequest.getEmail())) {
+        if (userRepository.existsByEmail(normalizedEmail)) {
             throw new APIException(HttpStatus.BAD_REQUEST, "Email is already registered!");
         }
 
         // Create new user entity & hash password using BCrypt
         User user = new User();
-        user.setName(signupRequest.getName());
-        user.setEmail(signupRequest.getEmail());
+        user.setName(signupRequest.getName().trim());
+        user.setEmail(normalizedEmail);
         user.setPassword(passwordEncoder.encode(signupRequest.getPassword()));
 
         User savedUser = userRepository.save(user);
@@ -54,9 +55,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public JwtAuthResponse login(LoginRequest loginRequest) {
+        String normalizedEmail = loginRequest.getEmail().trim().toLowerCase();
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                        loginRequest.getEmail(),
+                        normalizedEmail,
                         loginRequest.getPassword()
                 )
         );
@@ -65,7 +67,7 @@ public class AuthServiceImpl implements AuthService {
 
         String token = jwtTokenProvider.generateToken(authentication);
 
-        User user = userRepository.findByEmail(loginRequest.getEmail())
+        User user = userRepository.findByEmail(normalizedEmail)
                 .orElseThrow(() -> new APIException(HttpStatus.NOT_FOUND, "User not found"));
 
         UserDto userDto = new UserDto(user.getId(), user.getName(), user.getEmail());
