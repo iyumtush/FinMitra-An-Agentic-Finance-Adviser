@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(userData));
       return { success: true };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Invalid credentials or server error';
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Invalid credentials or server error';
       setError(msg);
       return { success: false, error: msg };
     } finally {
@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }) => {
       // Auto login after successful signup
       return await login(email, password);
     } catch (err) {
-      const msg = err.response?.data?.message || 'Signup failed. Please try again.';
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Signup failed. Please try again.';
       setError(msg);
       return { success: false, error: msg };
     } finally {

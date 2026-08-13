@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = "mysql://root:TushNIIT123%23@localhost:3306/finmitra_db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
