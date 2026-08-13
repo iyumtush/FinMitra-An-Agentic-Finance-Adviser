@@ -1,34 +1,68 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { loginUser as apiLogin, signupUser as apiSignup } from '../api/authApi';
+import { supabase } from '../supabaseClient';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    const savedUser = localStorage.getItem('user');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
-
-  const [token, setToken] = useState(() => localStorage.getItem('token') || null);
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    // 1. Fetch initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email.split('@')[0]
+        });
+      }
+      setLoading(false);
+    });
+
+    // 2. Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email.split('@')[0]
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const login = async (email, password) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiLogin(email, password);
-      const jwtToken = data.accessToken;
-      const userData = data.user;
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
-      setToken(jwtToken);
+      if (error) throw error;
+
+      const userData = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.user_metadata?.name || data.user.email.split('@')[0]
+      };
+
       setUser(userData);
-
-      localStorage.setItem('token', jwtToken);
-      localStorage.setItem('user', JSON.stringify(userData));
+      setSession(data.session);
       return { success: true };
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Invalid credentials or server error';
+      const msg = err.message || 'Invalid email or password';
       setError(msg);
       return { success: false, error: msg };
     } finally {
@@ -40,11 +74,28 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiSignup(name, email, password);
-      // Auto login after successful signup
-      return await login(email, password);
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: { name: name.trim() }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.session) {
+        const userData = {
+          id: data.user.id,
+          email: data.user.email,
+          name: name.trim()
+        };
+        setUser(userData);
+        setSession(data.session);
+      }
+      return { success: true };
     } catch (err) {
-      const msg = err.response?.data?.message || err.response?.data?.error || err.message || 'Signup failed. Please try again.';
+      const msg = err.message || 'Signup failed. Please try again.';
       setError(msg);
       return { success: false, error: msg };
     } finally {
@@ -52,15 +103,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    setToken(null);
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    setSession(null);
   };
 
+  const token = session?.access_token || null;
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, error, setError, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, token, session, loading, error, setError, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );
