@@ -21,11 +21,27 @@ public class AuthController {
         this.authService = authService;
     }
 
+    @GetMapping("/signup")
+    public ResponseEntity<java.util.Map<String, String>> getSignupInstruction() {
+        return ResponseEntity.ok(java.util.Map.of(
+            "message", "Signup endpoint requires HTTP POST with JSON body: { name, email, password }.",
+            "status", "Use the web app form to submit POST request."
+        ));
+    }
+
     // Build Signup REST API
     @PostMapping("/signup")
     public ResponseEntity<AuthResponse> signup(@Valid @RequestBody SignupRequest signupRequest) {
         AuthResponse response = authService.signup(signupRequest);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    @GetMapping("/login")
+    public ResponseEntity<java.util.Map<String, String>> getLoginInstruction() {
+        return ResponseEntity.ok(java.util.Map.of(
+            "message", "Login endpoint requires HTTP POST with JSON body: { email, password }.",
+            "status", "Use the web app form to submit POST request."
+        ));
     }
 
     // Build Login REST API
