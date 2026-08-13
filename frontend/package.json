@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.112.3",
     "axios": "^1.7.2",
     "lucide-react": "^0.395.0",

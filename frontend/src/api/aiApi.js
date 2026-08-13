@@ -1,5 +1,9 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { transactionApi } from './transactionApi';
 import { budgetApi } from './budgetApi';
+
+const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+const genAI = geminiApiKey ? new GoogleGenerativeAI(geminiApiKey) : null;
 
 export const aiApi = {
   getInsights: async () => {
@@ -58,8 +62,37 @@ export const aiApi = {
   },
 
   sendMessage: async (message) => {
+    try {
+      if (genAI) {
+        // Fetch current user financial context to inject into Gemini prompt
+        const transactions = await transactionApi.getTransactions();
+        const budgets = await budgetApi.getBudgets();
+
+        const contextSummary = JSON.stringify({
+          recentTransactions: transactions.slice(0, 15),
+          budgetLimits: budgets
+        });
+
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+        const systemPrompt = `You are FinMitra AI Agent, an intelligent financial adviser.
+User Financial Data Context: ${contextSummary}
+
+User Question: ${message}
+
+Provide clear, professional, actionable financial guidance in markdown format.`;
+
+        const result = await model.generateContent(systemPrompt);
+        const responseText = result.response.text();
+        return { response: responseText };
+      }
+    } catch (err) {
+      console.error('Gemini API Agent Error:', err);
+    }
+
+    // Fallback response if VITE_GEMINI_API_KEY is not provided
     const text = message.toLowerCase();
-    let reply = "I am your FinMitra Financial Adviser AI. Ask me about your spending, savings rate, or budget optimization!";
+    let reply = "I am your FinMitra Financial Adviser AI. Please set VITE_GEMINI_API_KEY in your .env file to enable live Gemini AI agent responses!";
 
     if (text.includes("save") || text.includes("savings")) {
       reply = "To maximize your savings, adopt the 50/30/20 rule: 50% for Needs, 30% for Wants, and 20% dedicated directly to SIPs & Emergency Funds.";
