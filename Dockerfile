@@ -12,4 +12,4 @@ COPY --from=build /app/target/*.jar app.jar
 
 EXPOSE 8085
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xmx384m", "-Xms128m", "-XX:+UseSerialGC", "-Dserver.port=${PORT:8085}", "-jar", "app.jar"]
