@@ -38,7 +38,26 @@ public class JwtTokenProvider {
     }
 
     private SecretKey key() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+        byte[] keyBytes;
+        try {
+            keyBytes = Decoders.BASE64.decode(jwtSecret);
+            if (keyBytes.length < 32) {
+                keyBytes = jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
+        } catch (Exception e) {
+            keyBytes = jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        }
+
+        if (keyBytes.length < 32) {
+            byte[] padded = new byte[32];
+            System.arraycopy(keyBytes, 0, padded, 0, keyBytes.length);
+            for (int i = keyBytes.length; i < 32; i++) {
+                padded[i] = (byte) 'x';
+            }
+            keyBytes = padded;
+        }
+
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 
     // Get email/username from JWT token
