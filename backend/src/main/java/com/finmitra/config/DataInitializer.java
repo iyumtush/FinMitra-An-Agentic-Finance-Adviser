@@ -38,6 +38,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     @Override
+    @Transactional
     public void run(String... args) {
         if (userRepository.count() == 0) {
             User demoUser = new User();
@@ -103,17 +104,17 @@ public class DataInitializer implements CommandLineRunner {
             entityManager.createNativeQuery(
                 "DO $$ " +
                 "BEGIN " +
-                "   IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'users_id_seq') THEN " +
-                "       PERFORM setval('users_id_seq', COALESCE((SELECT MAX(id) FROM users), 1)); " +
+                "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN " +
+                "       PERFORM setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1)); " +
                 "   END IF; " +
-                "   IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'transactions_id_seq') THEN " +
-                "       PERFORM setval('transactions_id_seq', COALESCE((SELECT MAX(id) FROM transactions), 1)); " +
+                "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'transactions') THEN " +
+                "       PERFORM setval(pg_get_serial_sequence('transactions', 'id'), COALESCE((SELECT MAX(id) FROM transactions), 1)); " +
                 "   END IF; " +
-                "   IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'budgets_id_seq') THEN " +
-                "       PERFORM setval('budgets_id_seq', COALESCE((SELECT MAX(id) FROM budgets), 1)); " +
+                "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'budgets') THEN " +
+                "       PERFORM setval(pg_get_serial_sequence('budgets', 'id'), COALESCE((SELECT MAX(id) FROM budgets), 1)); " +
                 "   END IF; " +
-                "   IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'categories_id_seq') THEN " +
-                "       PERFORM setval('categories_id_seq', COALESCE((SELECT MAX(id) FROM categories), 1)); " +
+                "   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'categories') THEN " +
+                "       PERFORM setval(pg_get_serial_sequence('categories', 'id'), COALESCE((SELECT MAX(id) FROM categories), 1)); " +
                 "   END IF; " +
                 "END $$;"
             ).executeUpdate();
