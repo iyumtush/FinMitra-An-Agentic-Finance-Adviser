@@ -6,9 +6,12 @@ import com.finmitra.entity.User;
 import com.finmitra.repository.BudgetRepository;
 import com.finmitra.repository.TransactionRepository;
 import com.finmitra.repository.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -20,6 +23,9 @@ public class DataInitializer implements CommandLineRunner {
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public DataInitializer(UserRepository userRepository,
                            TransactionRepository transactionRepository,
@@ -90,6 +96,29 @@ public class DataInitializer implements CommandLineRunner {
             rentBudget.setCategory("Rent");
             rentBudget.setLimitAmount(new BigDecimal("22000.00"));
             budgetRepository.save(rentBudget);
+        }
+
+        // Auto-synchronize PostgreSQL primary key sequences if running on PostgreSQL
+        try {
+            entityManager.createNativeQuery(
+                "DO $$ " +
+                "BEGIN " +
+                "   IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'users_id_seq') THEN " +
+                "       PERFORM setval('users_id_seq', COALESCE((SELECT MAX(id) FROM users), 1)); " +
+                "   END IF; " +
+                "   IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'transactions_id_seq') THEN " +
+                "       PERFORM setval('transactions_id_seq', COALESCE((SELECT MAX(id) FROM transactions), 1)); " +
+                "   END IF; " +
+                "   IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'budgets_id_seq') THEN " +
+                "       PERFORM setval('budgets_id_seq', COALESCE((SELECT MAX(id) FROM budgets), 1)); " +
+                "   END IF; " +
+                "   IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'categories_id_seq') THEN " +
+                "       PERFORM setval('categories_id_seq', COALESCE((SELECT MAX(id) FROM categories), 1)); " +
+                "   END IF; " +
+                "END $$;"
+            ).executeUpdate();
+        } catch (Exception e) {
+            // Non-PostgreSQL databases (MySQL) will ignore this block cleanly
         }
     }
 }
